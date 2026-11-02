@@ -28,16 +28,20 @@
   - Run any combination simultaneously in **Split** or **Overlay** view (please don't turn everything on in overlay view), adjust **Amplitude Sensitivity** (`5%`–`175%`), resize vertically, float as an independent window, or fullscreen on its own.
     <img width="1917" height="932" alt="image" src="https://github.com/user-attachments/assets/ae2e5681-fd2a-41a0-b2aa-fcfe0c18ebec" />
 
-<img width="1917" height="933" alt="image" src="https://github.com/user-attachments/assets/b764fd2b-56f0-4605-98e4-d67a9b5fcf01" />
+    <img width="1917" height="933" alt="image" src="https://github.com/user-attachments/assets/b764fd2b-56f0-4605-98e4-d67a9b5fcf01" />
 - **Hyprland-Style Tiling & Floating Window Manager**:
   - Drag splitters, swap tiled containers, float any panel (`Alt+LMB` to move, `Alt+RMB` or 8-direction edges to resize), hide/restore individual panels, and save up to **6 Workspace Layouts (`L1`–`L6`)** including outer window dimensions.
+    
 - **Shuffle Queue Reordering & Loop Modes**:
   - Visual tracklist reordering when `Shuffle: ON` is active, plus drag-and-drop (`::`) and `▲`/`▼` buttons to reorder tracks inside the shuffled queue or standard tracklist.
   - Loop modes: `Loop: OFF`, `Loop: ALL`, and `Loop: 1`.
+    
 - **Synced Timed Lyrics**:
   - Auto-loads local `.lrc` / `.vtt` files, fetches synced lyrics from LRCLIB, or lets you load `.lrc` files manually with click-to-seek.
+    
 - **Discord Rich Presence**:
   - Live Discord status updates with automatic cover art upload and an On/Off toggle in Settings.
+    
 - **Ignore the mystery button**:
   - Ignore the mystery button.
 
