@@ -61,3 +61,7 @@ npm start
 ```bash
 npm run build-installer
 ```
+
+
+## Credit where Credit is due
+Thank you to to ULTRAWIKI (https://ultrakill.wiki.gg/) for the container sprites, the default music icon, and the settings icon and to the spriter's resource for the background image (the scrolling one) and to Hakita and New Blood Interactive for making ULTRAKILL
