@@ -1,0 +1,6 @@
+node_modules/
+dist/
+downloads/
+bin/
+.DS_Store
+Thumbs.db
