@@ -1433,7 +1433,90 @@ function drawXyScopeInViewport(vx, vy, vw, vh, isPaused) {
   canvasCtx.restore();
 }
 
-let tuxPhase = 0;
+const TUX_TOTAL_FRAMES = 141;
+const TUX_COLS = 12;
+const TUX_FRAME_W = 160;
+const TUX_FRAME_H = 155;
+
+let tuxProcessedCanvas = null;
+let tuxSpriteReady = false;
+let tuxFrameCursor = 0;
+let tuxLastTickMs = performance.now();
+let tuxPrevBassEnergy = 0;
+let tuxLastBeatMs = 0;
+let tuxEstimatedBpm = 120;
+const tuxBeatIntervals = [];
+
+const tuxRawSheetImg = new Image();
+tuxRawSheetImg.onload = () => {
+  try {
+    const offscreen = document.createElement('canvas');
+    offscreen.width = tuxRawSheetImg.width;
+    offscreen.height = tuxRawSheetImg.height;
+    const octx = offscreen.getContext('2d');
+    octx.drawImage(tuxRawSheetImg, 0, 0);
+
+    // Key out the off-white background (approx #fcfefc) while keeping the penguin's white belly/eyes intact via border flood fill per cell
+    const imgData = octx.getImageData(0, 0, offscreen.width, offscreen.height);
+    const data = imgData.data;
+    const sheetW = offscreen.width;
+
+    for (let f = 0; f < TUX_TOTAL_FRAMES; f++) {
+      const col = f % TUX_COLS;
+      const row = Math.floor(f / TUX_COLS);
+      const x0 = col * TUX_FRAME_W;
+      const y0 = row * TUX_FRAME_H;
+
+      const visited = new Uint8Array(TUX_FRAME_W * TUX_FRAME_H);
+      const queue = new Int32Array(TUX_FRAME_W * TUX_FRAME_H);
+      let qHead = 0;
+      let qTail = 0;
+
+      const tryEnqueue = (lx, ly) => {
+        if (lx < 0 || lx >= TUX_FRAME_W || ly < 0 || ly >= TUX_FRAME_H) return;
+        const lIdx = ly * TUX_FRAME_W + lx;
+        if (visited[lIdx]) return;
+        const pIdx = ((y0 + ly) * sheetW + (x0 + lx)) * 4;
+        const r = data[pIdx];
+        const g = data[pIdx + 1];
+        const b = data[pIdx + 2];
+        // Off-white background pixels surrounding the penguin
+        if (r > 235 && g > 235 && b > 235) {
+          visited[lIdx] = 1;
+          data[pIdx + 3] = 0;
+          queue[qTail++] = lIdx;
+        }
+      };
+
+      for (let x = 0; x < TUX_FRAME_W; x++) {
+        tryEnqueue(x, 0);
+        tryEnqueue(x, TUX_FRAME_H - 1);
+      }
+      for (let y = 0; y < TUX_FRAME_H; y++) {
+        tryEnqueue(0, y);
+        tryEnqueue(TUX_FRAME_W - 1, y);
+      }
+
+      while (qHead < qTail) {
+        const curr = queue[qHead++];
+        const cx = curr % TUX_FRAME_W;
+        const cy = (curr / TUX_FRAME_W) | 0;
+        tryEnqueue(cx - 1, cy);
+        tryEnqueue(cx + 1, cy);
+        tryEnqueue(cx, cy - 1);
+        tryEnqueue(cx, cy + 1);
+      }
+    }
+
+    octx.putImageData(imgData, 0, 0);
+    tuxProcessedCanvas = offscreen;
+    tuxSpriteReady = true;
+  } catch (_) {
+    tuxProcessedCanvas = tuxRawSheetImg;
+    tuxSpriteReady = true;
+  }
+};
+tuxRawSheetImg.src = 'assets/tux_spritesheet.png';
 
 function drawTuxInViewport(vx, vy, vw, vh, isPaused) {
   canvasCtx.save();
@@ -1441,200 +1524,82 @@ function drawTuxInViewport(vx, vy, vw, vh, isPaused) {
   canvasCtx.rect(vx, vy, vw, vh);
   canvasCtx.clip();
 
+  const nowMs = performance.now();
+  const dtSec = Math.min(0.1, Math.max(0.001, (nowMs - tuxLastTickMs) / 1000));
+  tuxLastTickMs = nowMs;
+
   const sens = typeof state.visualizers.sensitivity === 'number' ? state.visualizers.sensitivity : 0.7;
 
-  let bass = 0;
-  let mid = 0;
-  let treble = 0;
-
+  let bassEnergy = 0;
+  let midEnergy = 0;
   if (!isPaused && freqDataArray) {
     let bSum = 0;
-    for (let i = 0; i < 8; i++) bSum += freqDataArray[i];
-    bass = Math.min(1.5, (bSum / (8 * 255)) * sens);
+    for (let i = 0; i < 10; i++) bSum += freqDataArray[i];
+    bassEnergy = (bSum / (10 * 255)) * sens;
 
     let mSum = 0;
-    for (let i = 8; i < 40; i++) mSum += freqDataArray[i];
-    mid = Math.min(1.5, (mSum / (32 * 255)) * sens);
+    for (let i = 10; i < 48; i++) mSum += freqDataArray[i];
+    midEnergy = (mSum / (38 * 255)) * sens;
 
-    let tSum = 0;
-    for (let i = 40; i < 100; i++) tSum += freqDataArray[i];
-    treble = Math.min(1.5, (tSum / (60 * 255)) * sens);
+    // Real-time beat onset detection for tempo (BPM) estimation
+    const flux = bassEnergy - tuxPrevBassEnergy;
+    tuxPrevBassEnergy = bassEnergy * 0.65 + tuxPrevBassEnergy * 0.35;
 
-    tuxPhase += 0.14 + mid * 0.24 + bass * 0.12;
+    const minBeatGapMs = 240; // up to 250 BPM
+    const maxBeatGapMs = 1500; // down to 40 BPM
+    if (flux > 0.085 && bassEnergy > 0.22 && nowMs - tuxLastBeatMs > minBeatGapMs) {
+      const interval = nowMs - tuxLastBeatMs;
+      tuxLastBeatMs = nowMs;
+      if (interval < maxBeatGapMs) {
+        tuxBeatIntervals.push(interval);
+        if (tuxBeatIntervals.length > 8) tuxBeatIntervals.shift();
+        const avgInterval =
+          tuxBeatIntervals.reduce((a, b) => a + b, 0) / tuxBeatIntervals.length;
+        const rawBpm = 60000 / avgInterval;
+        tuxEstimatedBpm = Math.max(55, Math.min(220, tuxEstimatedBpm * 0.6 + rawBpm * 0.4));
+      }
+    } else if (nowMs - tuxLastBeatMs > 2200) {
+      // Gradually relax tempo when song has a quiet ambient section
+      tuxEstimatedBpm = Math.max(60, tuxEstimatedBpm * 0.992 + 95 * 0.008);
+    }
+
+    // Advance GIF frame cursor proportional to detected tempo + current groove intensity
+    const tempoRatio = tuxEstimatedBpm / 115; // 1.0x at 115 BPM
+    const energyBoost = 0.55 + Math.min(1.65, (bassEnergy * 0.8 + midEnergy * 0.5));
+    const speedMultiplier = Math.max(0.3, Math.min(3.4, tempoRatio * energyBoost));
+    const baseFps = 20;
+    tuxFrameCursor = (tuxFrameCursor + dtSec * baseFps * speedMultiplier) % TUX_TOTAL_FRAMES;
   }
 
-  const cx = vx + vw / 2;
-  const floorY = vy + vh - Math.max(4, vh * 0.08);
-  const scale = Math.max(0.28, Math.min(vw / 110, (vh * 0.82) / 90));
+  if (tuxSpriteReady && tuxProcessedCanvas) {
+    const frameIdx = isPaused ? 0 : Math.floor(tuxFrameCursor) % TUX_TOTAL_FRAMES;
+    const col = frameIdx % TUX_COLS;
+    const row = Math.floor(frameIdx / TUX_COLS);
+    const sx = col * TUX_FRAME_W;
+    const sy = row * TUX_FRAME_H;
 
-  // Subtle retro dance floor glow beneath Tux
-  const glowRadius = 28 * scale * (1 + bass * 0.45);
-  const grad = canvasCtx.createRadialGradient(cx, floorY, 2, cx, floorY, glowRadius);
-  grad.addColorStop(0, isPaused ? 'rgba(255, 204, 0, 0.18)' : 'rgba(255, 204, 0, 0.42)');
-  grad.addColorStop(1, 'rgba(255, 204, 0, 0)');
-  canvasCtx.fillStyle = grad;
-  canvasCtx.beginPath();
-  canvasCtx.ellipse(cx, floorY, glowRadius, Math.max(3, 7 * scale), 0, 0, Math.PI * 2);
-  canvasCtx.fill();
+    // Fit cleanly inside the viewport while preserving the Club Penguin aspect ratio
+    const pad = Math.min(8, vh * 0.04);
+    const availW = Math.max(24, vw - pad * 2);
+    const availH = Math.max(24, vh - pad * 2);
+    const scale = Math.min(availW / TUX_FRAME_W, availH / TUX_FRAME_H);
+    const drawW = TUX_FRAME_W * scale;
+    const drawH = TUX_FRAME_H * scale;
+    const dx = vx + (vw - drawW) / 2;
+    const dy = vy + (vh - drawH) / 2;
 
-  const bounceY = isPaused ? 0 : Math.abs(Math.sin(tuxPhase)) * 12 * scale * (0.35 + bass * 0.85);
-  const swayX = isPaused ? 0 : Math.sin(tuxPhase * 0.5) * 9 * scale * (0.3 + mid * 0.7);
-  const tiltAngle = isPaused ? 0 : Math.sin(tuxPhase * 0.5) * (0.14 + mid * 0.18);
-  const squashY = isPaused ? 1 : 1 + Math.sin(tuxPhase * 2) * 0.08 * bass;
-  const squashX = isPaused ? 1 : 1 - Math.sin(tuxPhase * 2) * 0.06 * bass;
-
-  canvasCtx.translate(cx + swayX, floorY - bounceY);
-  canvasCtx.rotate(tiltAngle);
-  canvasCtx.scale(scale * squashX, scale * squashY);
-
-  // Left & Right Orange Webbed Feet (tapping to the beat)
-  const leftFootTap = isPaused ? 0 : Math.max(0, Math.sin(tuxPhase)) * 0.35;
-  const rightFootTap = isPaused ? 0 : Math.max(0, -Math.sin(tuxPhase)) * 0.35;
-
-  canvasCtx.fillStyle = '#f5a623';
-  canvasCtx.strokeStyle = '#000000';
-  canvasCtx.lineWidth = 2;
-
-  // Left foot
-  canvasCtx.save();
-  canvasCtx.translate(-14, -4);
-  canvasCtx.rotate(-0.18 - leftFootTap);
-  canvasCtx.beginPath();
-  canvasCtx.ellipse(0, 0, 12, 5.5, 0, 0, Math.PI * 2);
-  canvasCtx.fill();
-  canvasCtx.stroke();
-  canvasCtx.restore();
-
-  // Right foot
-  canvasCtx.save();
-  canvasCtx.translate(14, -4);
-  canvasCtx.rotate(0.18 + rightFootTap);
-  canvasCtx.beginPath();
-  canvasCtx.ellipse(0, 0, 12, 5.5, 0, 0, Math.PI * 2);
-  canvasCtx.fill();
-  canvasCtx.stroke();
-  canvasCtx.restore();
-
-  // Flippers / Wings (flapping to mid + treble)
-  const leftWingAngle = isPaused
-    ? 0.35
-    : 0.55 + Math.sin(tuxPhase) * (0.55 + mid * 0.65) + treble * 0.35;
-  const rightWingAngle = isPaused
-    ? -0.35
-    : -0.55 + Math.cos(tuxPhase) * (0.55 + mid * 0.65) - treble * 0.35;
-
-  // Left flipper
-  canvasCtx.save();
-  canvasCtx.translate(-22, -42);
-  canvasCtx.rotate(leftWingAngle);
-  canvasCtx.fillStyle = '#14141c';
-  canvasCtx.strokeStyle = '#ffffff';
-  canvasCtx.lineWidth = 1.6;
-  canvasCtx.beginPath();
-  canvasCtx.ellipse(-8, 8, 6, 18, 0.3, 0, Math.PI * 2);
-  canvasCtx.fill();
-  canvasCtx.stroke();
-  canvasCtx.restore();
-
-  // Right flipper
-  canvasCtx.save();
-  canvasCtx.translate(22, -42);
-  canvasCtx.rotate(rightWingAngle);
-  canvasCtx.fillStyle = '#14141c';
-  canvasCtx.strokeStyle = '#ffffff';
-  canvasCtx.lineWidth = 1.6;
-  canvasCtx.beginPath();
-  canvasCtx.ellipse(8, 8, 6, 18, -0.3, 0, Math.PI * 2);
-  canvasCtx.fill();
-  canvasCtx.stroke();
-  canvasCtx.restore();
-
-  // Main Penguin Torso (Black outer body with crisp white outline)
-  canvasCtx.fillStyle = '#101016';
-  canvasCtx.strokeStyle = '#ffffff';
-  canvasCtx.lineWidth = 2;
-  canvasCtx.beginPath();
-  canvasCtx.ellipse(0, -34, 24, 29, 0, 0, Math.PI * 2);
-  canvasCtx.fill();
-  canvasCtx.stroke();
-
-  // Head
-  canvasCtx.beginPath();
-  canvasCtx.arc(0, -60, 17, 0, Math.PI * 2);
-  canvasCtx.fill();
-  canvasCtx.stroke();
-
-  // Merge neck smoothly over the head/torso seam
-  canvasCtx.fillStyle = '#101016';
-  canvasCtx.beginPath();
-  canvasCtx.ellipse(0, -48, 16, 12, 0, 0, Math.PI * 2);
-  canvasCtx.fill();
-
-  // White Belly
-  canvasCtx.fillStyle = '#f5f5fa';
-  canvasCtx.beginPath();
-  canvasCtx.ellipse(0, -31, 16.5, 22, 0, 0, Math.PI * 2);
-  canvasCtx.fill();
-
-  // Eyes (White ovals + reactive pupils)
-  const eyeLookupX = isPaused ? 0 : Math.sin(tuxPhase * 0.5) * 1.8;
-  canvasCtx.fillStyle = '#ffffff';
-  canvasCtx.strokeStyle = '#000000';
-  canvasCtx.lineWidth = 1.2;
-
-  canvasCtx.beginPath();
-  canvasCtx.ellipse(-5.5, -63, 4.2, 5.5, 0, 0, Math.PI * 2);
-  canvasCtx.fill();
-  canvasCtx.stroke();
-
-  canvasCtx.beginPath();
-  canvasCtx.ellipse(5.5, -63, 4.2, 5.5, 0, 0, Math.PI * 2);
-  canvasCtx.fill();
-  canvasCtx.stroke();
-
-  // Pupils
-  canvasCtx.fillStyle = '#000000';
-  canvasCtx.beginPath();
-  canvasCtx.arc(-5 + eyeLookupX, -63, 2.1, 0, Math.PI * 2);
-  canvasCtx.arc(5 + eyeLookupX, -63, 2.1, 0, Math.PI * 2);
-  canvasCtx.fill();
-
-  // Cool sunglasses when bass drops hard!
-  if (!isPaused && bass > 0.62) {
-    canvasCtx.fillStyle = '#050508';
-    canvasCtx.strokeStyle = '#ffffff';
-    canvasCtx.lineWidth = 1.4;
-    canvasCtx.fillRect(-13, -67, 11, 6.5);
-    canvasCtx.strokeRect(-13, -67, 11, 6.5);
-    canvasCtx.fillRect(2, -67, 11, 6.5);
-    canvasCtx.strokeRect(2, -67, 11, 6.5);
-    canvasCtx.beginPath();
-    canvasCtx.moveTo(-2, -65);
-    canvasCtx.lineTo(2, -65);
-    canvasCtx.stroke();
-  }
-
-  // Yellow-Orange Beak (opens & sings to mid/treble frequencies)
-  const beakOpen = isPaused ? 0 : Math.min(5, (mid + treble) * 3.5);
-  canvasCtx.fillStyle = '#ffb400';
-  canvasCtx.strokeStyle = '#000000';
-  canvasCtx.lineWidth = 1.3;
-  canvasCtx.beginPath();
-  canvasCtx.moveTo(-8, -56);
-  canvasCtx.quadraticCurveTo(0, -60, 8, -56);
-  canvasCtx.quadraticCurveTo(0, -50 + beakOpen, -8, -56);
-  canvasCtx.closePath();
-  canvasCtx.fill();
-  canvasCtx.stroke();
-
-  // Floating pixel music notes when music is playing
-  if (!isPaused) {
-    canvasCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-    canvasCtx.font = '10px "VCR OSD Mono", monospace';
-    const noteOffset1 = (tuxPhase * 6) % 24;
-    const noteOffset2 = ((tuxPhase + 2) * 6) % 24;
-    canvasCtx.fillText('♪', -34 - noteOffset1 * 0.3, -55 - noteOffset1);
-    canvasCtx.fillText('♫', 26 + noteOffset2 * 0.3, -52 - noteOffset2);
+    canvasCtx.imageSmoothingEnabled = false;
+    canvasCtx.drawImage(
+      tuxProcessedCanvas,
+      sx,
+      sy,
+      TUX_FRAME_W,
+      TUX_FRAME_H,
+      dx,
+      dy,
+      drawW,
+      drawH
+    );
   }
 
   canvasCtx.restore();
