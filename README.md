@@ -1,4 +1,5 @@
 # Nocturnal Player
+<img width="1917" height="998" alt="image" src="https://github.com/user-attachments/assets/be9170e0-8622-482f-888b-ec44be9afc80" />
 
 **Nocturnal Player** is a standalone desktop music player built with Electron featuring an ULTRAKILL Nocturnal-inspired dark aesthetic, a Hyprland-style tiling & floating window manager, multi-mode audio visualizers (including a stereo XY Oscilloscope Music vectorscope), YouTube Music import with synced timed lyrics, and live Discord Rich Presence (it's very buggy please just turn it off at this point).
 
@@ -22,6 +23,8 @@
   - Auto-loads local `.lrc` / `.vtt` files, fetches synced lyrics from LRCLIB, or lets you load `.lrc` files manually with click-to-seek.
 - **Discord Rich Presence**:
   - Live Discord status updates with automatic cover art upload and an On/Off toggle in Settings.
+- **Ignore the Mystery button**:
+  -Ignore the mystery button 
 
 ## Installers (Releases)
 - **Windows (`Nocturnal-Player-Setup.exe`)**: Single-file Windows setup executable that installs `Nocturnal player`, creates Desktop & Start Menu shortcuts, and registers an uninstaller.
