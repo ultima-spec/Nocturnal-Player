@@ -640,6 +640,12 @@ if (Test-Path '${PAYLOAD_ZIP.replace(/'/g, "''")}') { Remove-Item '${PAYLOAD_ZIP
   if (fs.existsSync(macBuildScript)) {
     require(macBuildScript);
   }
+
+  // Also build the Linux installer zip inside dist/
+  const linuxBuildScript = path.join(ROOT, 'build-linux-installer.js');
+  if (fs.existsSync(linuxBuildScript)) {
+    require(linuxBuildScript);
+  }
 }
 
 main();
