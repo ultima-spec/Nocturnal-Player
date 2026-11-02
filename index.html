@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nocturnal player</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="dark-mode">
+  <div class="workspace-shell">
+    <!-- Hyprland-style Workspace Bar -->
+    <header class="hypr-bar nocturnal-box-fill">
+      <div class="hypr-bar-left">
+        <span class="hypr-brand">NOCTURNAL PLAYER</span>
+      </div>
+
+      <div class="hypr-bar-center">
+        <div class="hypr-bar-group" title="Show or hide individual panels">
+          <span class="hypr-bar-label">PANELS:</span>
+          <div id="panel-toggles-bar" class="hypr-btn-group">
+            <button type="button" class="panel-toggle-btn nocturnal-box-fill" data-panel-toggle="pane-sidebar" aria-pressed="true" title="Toggle Playlists &amp; Import panel">Playlists</button>
+            <button type="button" class="panel-toggle-btn nocturnal-box-fill" data-panel-toggle="pane-player" aria-pressed="true" title="Toggle Now Playing panel">Player</button>
+            <button type="button" class="panel-toggle-btn nocturnal-box-fill" data-panel-toggle="pane-tracklist" aria-pressed="true" title="Toggle Tracklist panel">Tracklist</button>
+            <button type="button" class="panel-toggle-btn nocturnal-box-fill" data-panel-toggle="pane-lyrics" aria-pressed="true" title="Toggle Timed Lyrics panel">Lyrics</button>
+            <button type="button" class="panel-toggle-btn nocturnal-box-fill" data-panel-toggle="visualizer" aria-pressed="true" title="Toggle Visualizer panel">Visualizer</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="hypr-bar-right">
+        <button id="btn-hypr-show-all" type="button" class="nocturnal-box-fill" title="Unhide all panels">Show All</button>
+        <button id="btn-hypr-tile-all" type="button" class="nocturnal-box-fill" title="Tile all container windows">Tile All</button>
+        <button id="btn-hypr-float-all" type="button" class="nocturnal-box-fill" title="Float all container windows">Float All</button>
+        <button id="btn-app-fullscreen" type="button" class="nocturnal-box-outline" title="Toggle App Monitor Fullscreen (F11)">App Fullscreen</button>
+        <button id="btn-open-settings" type="button" class="settings-icon-btn nocturnal-box-outline" title="Options &amp; Settings">
+          <img src="assets/options_nocturnal_style.png" alt="Settings" class="settings-icon-img" />
+        </button>
+      </div>
+    </header>
+
+    <!-- Hyprland Tiling + Floating Workspace Stage -->
+    <div id="hypr-workspace" class="hypr-workspace">
+      <!-- Tiling Grid Cells (Slots 0, 1, 2, 3) + Interactive Splitters -->
+      <div id="tile-col-left" class="tile-col tile-col-left">
+        <div id="tile-slot-0" class="tile-slot" data-slot="0"></div>
+      </div>
+
+      <div id="gutter-col" class="hypr-gutter hypr-gutter-vertical" title="Drag to resize left/right split"></div>
+
+      <div id="tile-col-right" class="tile-col tile-col-right">
+        <div id="tile-row-top" class="tile-row tile-row-top">
+          <div id="tile-slot-1" class="tile-slot" data-slot="1"></div>
+        </div>
+
+        <div id="gutter-row-right" class="hypr-gutter hypr-gutter-horizontal" title="Drag to resize top/bottom split"></div>
+
+        <div id="tile-row-bottom" class="tile-row tile-row-bottom">
+          <div id="tile-slot-2" class="tile-slot" data-slot="2"></div>
+          <div id="gutter-bottom-split" class="hypr-gutter hypr-gutter-vertical" title="Drag to resize bottom panes"></div>
+          <div id="tile-slot-3" class="tile-slot" data-slot="3"></div>
+        </div>
+      </div>
+
+      <!-- ====================================================================
+           CONTAINER WINDOW 1: PLAYLISTS & IMPORT (pane-sidebar)
+           ==================================================================== -->
+      <aside id="pane-sidebar" class="hypr-window sidebar nocturnal-container-fill" data-pane-id="pane-sidebar">
+        <div class="hypr-titlebar" data-drag-handle="true">
+          <span class="hypr-grip">[::] PLAYLISTS &amp; IMPORT</span>
+          <div class="hypr-win-controls">
+            <button type="button" class="hypr-float-btn nocturnal-box-outline" data-toggle-fullscreen="pane-sidebar" title="Fullscreen this window (Alt+F or double-click titlebar)">FULL</button>
+            <button type="button" class="hypr-float-btn nocturnal-box-outline" data-toggle-float="pane-sidebar">FLOAT</button>
+            <button type="button" class="hypr-float-btn nocturnal-box-outline" data-toggle-hide="pane-sidebar" title="Hide this panel (restore from PANELS bar at top)">HIDE</button>
+          </div>
+        </div>
+
+        <div class="hypr-window-body sidebar-body">
+          <div class="section-header">
+            <h2>Playlists (Max 6)</h2>
+          </div>
+          <div id="playlist-slots" class="playlist-slots"></div>
+
+          <div class="playlist-actions">
+            <button id="btn-rename-playlist" type="button" class="nocturnal-box-fill">Rename Playlist</button>
+            <button id="btn-clear-playlist" type="button" class="nocturnal-box-fill">Clear Playlist</button>
+          </div>
+
+          <hr class="nocturnal-divider" />
+
+          <div class="section-header">
+            <h2>Import into Active Playlist</h2>
+          </div>
+          <div class="import-actions">
+            <button id="btn-import-folder" type="button" class="nocturnal-box-outline primary-btn">Import Folder (MP3/WAV/OGG)</button>
+            <button id="btn-import-ytm" type="button" class="nocturnal-box-outline primary-btn">Import from YT Music...</button>
+            <button id="btn-add-files" type="button" class="nocturnal-box-fill">Add Audio Files...</button>
+            <button id="btn-set-playlist-cover" type="button" class="nocturnal-box-fill">Set Playlist Fallback Cover...</button>
+          </div>
+        </div>
+
+        <!-- Hidden HTML inputs as fallback when running outside Electron IPC -->
+        <input id="fallback-folder-input" type="file" webkitdirectory directory multiple hidden />
+        <input id="fallback-files-input" type="file" accept=".mp3,.wav,.ogg,audio/mpeg,audio/wav,audio/ogg" multiple hidden />
+        <input id="fallback-cover-input" type="file" accept="image/*" hidden />
+        <input id="fallback-lrc-input" type="file" accept=".lrc,.vtt,.txt" hidden />
+      </aside>
+
+      <!-- ====================================================================
+           CONTAINER WINDOW 2: NOW PLAYING & VISUALIZERS (pane-player)
+           ==================================================================== -->
+      <section id="pane-player" class="hypr-window now-playing-window nocturnal-container-fill" data-pane-id="pane-player">
+        <div class="hypr-titlebar" data-drag-handle="true">
+          <span class="hypr-grip">[::] NOW PLAYING &amp; VISUALIZER</span>
+          <div class="hypr-win-controls">
+            <button type="button" class="hypr-float-btn nocturnal-box-outline" data-toggle-fullscreen="pane-player" title="Fullscreen this window (Alt+F or double-click titlebar)">FULL</button>
+            <button type="button" class="hypr-float-btn nocturnal-box-outline" data-toggle-float="pane-player">FLOAT</button>
+            <button type="button" class="hypr-float-btn nocturnal-box-outline" data-toggle-hide="pane-player" title="Hide this panel (restore from PANELS bar at top)">HIDE</button>
+          </div>
+        </div>
+
+        <div class="hypr-window-body now-playing-panel">
+          <div class="cover-art-panel">
+            <!-- Cover art frame (9-patched nocturnal_container_border.svg) -->
+            <div id="cover-art-box" class="cover-art-box nocturnal-container-outline" title="Click to import custom cover art">
+              <img id="cover-art-img" src="assets/180px-soundtrack_(nocturnal_style).png" alt="Cover Art" />
+            </div>
+            <div class="cover-art-buttons">
+              <button id="btn-set-track-cover" type="button" class="nocturnal-box-fill">Upload Cover</button>
+              <button id="btn-clear-track-cover" type="button" class="nocturnal-box-outline">Reset Default</button>
+            </div>
+          </div>
+
+          <div class="player-visualizer-panel">
+            <div class="track-metadata">
+              <div class="playlist-badge nocturnal-box-outline" id="now-playing-playlist">Playlist 1</div>
+              <h1 id="now-playing-title">No track loaded</h1>
+              <div id="now-playing-format" class="track-format">Supported formats: OGG / WAV / MP3 / YT Music</div>
+            </div>
+
+            <!-- Multi-Visualizer (Resizable + Standalone Fullscreen + Float/Dock) -->
+            <div id="visualizer-container" class="visualizer-container nocturnal-container-outline">
+              <div id="visualizer-header" class="visualizer-header" title="Drag when floating, or double-click to fullscreen visualizer">
+                <span class="vis-title-grip">[::] VISUALIZER</span>
+                <div class="visualizer-toggles">
+                  <button id="btn-vis-wave" type="button" class="vis-toggle-btn nocturnal-box-fill" aria-pressed="true" title="Toggle Wave Visualizer">
+                    WAVE
+                  </button>
+                  <button id="btn-vis-bar" type="button" class="vis-toggle-btn nocturnal-box-fill" aria-pressed="false" title="Toggle Bar Visualizer">
+                    BAR
+                  </button>
+                  <button id="btn-vis-circle" type="button" class="vis-toggle-btn nocturnal-box-fill" aria-pressed="false" title="Toggle Circle Visualizer">
+                    CIRCLE
+                  </button>
+                  <button id="btn-vis-xy" type="button" class="vis-toggle-btn nocturnal-box-fill" aria-pressed="false" title="Toggle Stereo XY Oscilloscope Music Vectorscope (Left vs Right Channel Lissajous)">
+                    XY SCOPE
+                  </button>
+                  <button id="btn-vis-layout" type="button" class="vis-toggle-btn nocturnal-box-outline" title="Toggle Split vs Overlay when multiple visualizers are active">
+                    VIEW: SPLIT
+                  </button>
+                  <button id="btn-vis-float" type="button" class="vis-toggle-btn nocturnal-box-outline" title="Pop out visualizer to move &amp; resize freely">
+                    FLOAT
+                  </button>
+                  <button id="btn-vis-fullscreen" type="button" class="vis-toggle-btn nocturnal-box-outline" title="Fullscreen ONLY the visualizer (or double-click canvas)">
+                    FULL
+                  </button>
+                  <button id="btn-vis-hide" type="button" class="vis-toggle-btn nocturnal-box-outline" title="Hide visualizer (restore from PANELS bar at top)">
+                    HIDE
+                  </button>
+                </div>
+              </div>
+              <div id="visualizer-canvas-wrap" class="visualizer-canvas-wrap">
+                <canvas id="wave-canvas" width="480" height="54"></canvas>
+              </div>
+              <div id="visualizer-resize-bar" class="visualizer-resize-bar" title="Drag up/down to resize visualizer"></div>
+            </div>
+
+            <!-- Transport Controls -->
+            <div class="transport-panel">
+              <div class="seek-row">
+                <span id="current-time">0:00</span>
+                <input id="seek-bar" type="range" min="0" max="100" value="0" step="0.1" />
+                <span id="total-time">0:00</span>
+              </div>
+
+              <div class="controls-row">
+                <div class="playback-buttons">
+                  <button id="btn-prev" type="button" class="nocturnal-box-fill" title="Previous Track">|&lt; Prev</button>
+                  <button id="btn-play-pause" type="button" class="nocturnal-box-outline play-btn" title="Play / Pause">Play</button>
+                  <button id="btn-stop" type="button" class="nocturnal-box-fill" title="Stop">Stop</button>
+                  <button id="btn-next" type="button" class="nocturnal-box-fill" title="Next Track">Next &gt;|</button>
+                  <button id="btn-shuffle" type="button" class="nocturnal-box-fill" aria-pressed="false" title="Toggle Shuffle">Shuffle: OFF</button>
+                  <button id="btn-loop" type="button" class="nocturnal-box-fill" aria-pressed="false" title="Cycle Loop Mode (Off / Loop All / Loop 1)">Loop: OFF</button>
+                </div>
+
+                <div class="volume-control nocturnal-box-fill">
+                  <label for="volume-bar">VOL</label>
+                  <input id="volume-bar" type="range" min="0" max="1" step="0.01" value="0.85" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           CONTAINER WINDOW 3: TRACKLIST (pane-tracklist)
+           ==================================================================== -->
+      <section id="pane-tracklist" class="hypr-window tracklist-panel nocturnal-container-fill" data-pane-id="pane-tracklist">
+        <div class="hypr-titlebar" data-drag-handle="true">
+          <span class="hypr-grip">[::] TRACKLIST</span>
+          <div class="hypr-win-controls">
+            <button type="button" class="hypr-float-btn nocturnal-box-outline" data-toggle-fullscreen="pane-tracklist" title="Fullscreen this window (Alt+F or double-click titlebar)">FULL</button>
+            <button type="button" class="hypr-float-btn nocturnal-box-outline" data-toggle-float="pane-tracklist">FLOAT</button>
+            <button type="button" class="hypr-float-btn nocturnal-box-outline" data-toggle-hide="pane-tracklist" title="Hide this panel (restore from PANELS bar at top)">HIDE</button>
+          </div>
+        </div>
+
+        <div class="hypr-window-body tracklist-body-wrap">
+          <div class="tracklist-header">
+            <h2 id="active-playlist-heading">Playlist 1 Tracks (0)</h2>
+            <span id="status-message" class="status-message"></span>
+          </div>
+
+          <div class="tracklist-table-wrapper">
+            <table class="tracklist-table">
+              <thead>
+                <tr>
+                  <th class="col-index">#</th>
+                  <th class="col-cover">Cover</th>
+                  <th class="col-title">Track Name</th>
+                  <th class="col-format">Format</th>
+                  <th class="col-actions">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="tracklist-body">
+                <tr class="empty-row">
+                  <td colspan="5">No tracks in this playlist. Click "Import Folder", "Import from YT Music...", or "Add Audio Files..." to begin.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           CONTAINER WINDOW 4: TIMED LYRICS (pane-lyrics)
+           ==================================================================== -->
+      <section id="pane-lyrics" class="hypr-window lyrics-panel nocturnal-container-fill" data-pane-id="pane-lyrics">
+        <div class="hypr-titlebar" data-drag-handle="true">
+          <span class="hypr-grip">[::] TIMED LYRICS</span>
+          <div class="hypr-win-controls">
+            <button type="button" class="hypr-float-btn nocturnal-box-outline" data-toggle-fullscreen="pane-lyrics" title="Fullscreen this window (Alt+F or double-click titlebar)">FULL</button>
+            <button type="button" class="hypr-float-btn nocturnal-box-outline" data-toggle-float="pane-lyrics">FLOAT</button>
+            <button type="button" class="hypr-float-btn nocturnal-box-outline" data-toggle-hide="pane-lyrics" title="Hide this panel (restore from PANELS bar at top)">HIDE</button>
+          </div>
+        </div>
+
+        <div class="hypr-window-body lyrics-body-wrap">
+          <div class="lyrics-header">
+            <div class="lyrics-title-group">
+              <h2>Timed Lyrics</h2>
+              <span id="lyrics-sync-badge" class="lyrics-badge nocturnal-box-outline">IDLE</span>
+            </div>
+            <div class="lyrics-actions">
+              <button id="btn-fetch-lyrics" type="button" class="nocturnal-box-fill" title="Auto-fetch synced timed lyrics for current song">
+                Fetch Lyrics
+              </button>
+              <button id="btn-load-lrc" type="button" class="nocturnal-box-outline" title="Load a .lrc / .vtt / .txt lyrics file">
+                Load .LRC
+              </button>
+            </div>
+          </div>
+
+          <div id="lyrics-container" class="lyrics-container nocturnal-container-outline">
+            <div class="lyrics-placeholder">
+              Play a YT Music song or local track to display timed lyrics here.
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Inline Rename Dialog (9-patched nocturnal_container_border_fill.svg) -->
+  <dialog id="rename-dialog" class="nocturnal-container-fill">
+    <form id="rename-form" method="dialog">
+      <label for="rename-input">Playlist Name:</label>
+      <input id="rename-input" class="nocturnal-box-outline" type="text" maxlength="32" required />
+      <div class="dialog-buttons">
+        <button type="button" id="rename-cancel" class="nocturnal-box-fill">Cancel</button>
+        <button type="submit" class="nocturnal-box-outline">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- YT Music Import Dialog (9-patched nocturnal_container_border_fill.svg) -->
+  <dialog id="ytm-dialog" class="nocturnal-container-fill">
+    <form id="ytm-form" method="dialog">
+      <h3 class="dialog-title">Import from YouTube Music</h3>
+      <label for="ytm-url-input">YT Music URL (Track or Playlist) or Search Query:</label>
+      <input
+        id="ytm-url-input"
+        class="nocturnal-box-outline"
+        type="text"
+        placeholder="https://music.youtube.com/watch?v=... or song name"
+        required
+      />
+
+      <div class="ytm-options-row">
+        <label for="ytm-format-select">Audio Format:</label>
+        <select id="ytm-format-select" class="nocturnal-box-fill">
+          <option value="mp3" selected>MP3</option>
+          <option value="ogg">OGG</option>
+          <option value="wav">WAV</option>
+        </select>
+      </div>
+
+      <label class="ytm-checkbox-label">
+        <input id="ytm-cover-checkbox" type="checkbox" />
+        <span>Use YT Music thumbnail as track cover (uncheck to keep Nocturnal default cover)</span>
+      </label>
+
+      <div id="ytm-progress-box" class="ytm-progress-box nocturnal-container-outline" hidden>
+        <div id="ytm-progress-text">Preparing YT Music import and timed lyrics...</div>
+      </div>
+
+      <div class="dialog-buttons">
+        <button type="button" id="ytm-cancel" class="nocturnal-box-fill">Cancel</button>
+        <button type="submit" id="ytm-submit" class="nocturnal-box-outline primary-btn">Import</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Settings & Options Dialog -->
+  <dialog id="settings-dialog" class="settings-dialog nocturnal-container-fill">
+    <div class="settings-dialog-header">
+      <div class="settings-title-wrap">
+        <img src="assets/options_nocturnal_style.png" alt="Options" class="settings-header-icon" />
+        <h3 class="dialog-title">[::] OPTIONS &amp; SETTINGS</h3>
+      </div>
+      <button type="button" id="btn-close-settings" class="nocturnal-box-outline">Close</button>
+    </div>
+
+    <div class="settings-sections">
+      <!-- 1. Visualizer Sensitivity -->
+      <div class="settings-section nocturnal-container-outline">
+        <div class="settings-section-title">Visualizer Sensitivity</div>
+        <div class="settings-row">
+          <label for="vis-sensitivity-bar">Amplitude Sensitivity:</label>
+          <div class="vis-sensitivity-control">
+            <input id="vis-sensitivity-bar" type="range" min="0.05" max="1.75" step="0.05" value="0.70" />
+            <span id="vis-sensitivity-val">70%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Workspace Layouts (Up to 6) + Reset Layout -->
+      <div class="settings-section nocturnal-container-outline">
+        <div class="settings-section-title">Workspace Layouts (Max 6)</div>
+        <div class="settings-row">
+          <div id="layout-slots-bar" class="hypr-btn-group">
+            <button type="button" class="layout-slot-btn nocturnal-box-fill" data-layout-slot="0" aria-pressed="true" title="Load Layout 1 (Shift+Click or Right-Click to overwrite)">L1</button>
+            <button type="button" class="layout-slot-btn nocturnal-box-fill" data-layout-slot="1" aria-pressed="false" title="Load Layout 2 (Shift+Click or Right-Click to overwrite)">L2</button>
+            <button type="button" class="layout-slot-btn nocturnal-box-fill" data-layout-slot="2" aria-pressed="false" title="Load Layout 3 (Shift+Click or Right-Click to overwrite)">L3</button>
+            <button type="button" class="layout-slot-btn nocturnal-box-fill" data-layout-slot="3" aria-pressed="false" title="Load Layout 4 (Shift+Click or Right-Click to overwrite)">L4</button>
+            <button type="button" class="layout-slot-btn nocturnal-box-fill" data-layout-slot="4" aria-pressed="false" title="Load Layout 5 (Shift+Click or Right-Click to overwrite)">L5</button>
+            <button type="button" class="layout-slot-btn nocturnal-box-fill" data-layout-slot="5" aria-pressed="false" title="Load Layout 6 (Shift+Click or Right-Click to overwrite)">L6</button>
+          </div>
+          <button id="btn-save-layout" type="button" class="nocturnal-box-outline" title="Save current window sizes &amp; visible panels to the active Layout slot">Save Layout</button>
+          <button id="btn-hypr-reset" type="button" class="nocturnal-box-fill" title="Reset active layout slot to default">Reset Layout</button>
+        </div>
+      </div>
+
+      <!-- 3. Discord Rich Presence On/Off -->
+      <div class="settings-section nocturnal-container-outline">
+        <div class="settings-section-title">Discord Rich Presence</div>
+        <div class="settings-row">
+          <button id="btn-toggle-discord-rpc" type="button" class="nocturnal-box-outline" aria-pressed="true">
+            Discord RPC: ON
+          </button>
+          <span id="discord-status-badge" class="discord-badge nocturnal-box-outline" title="Click to reconnect Discord Rich Presence">
+            DISCORD RPC: ACTIVE
+          </span>
+        </div>
+      </div>
+
+      <!-- 4. Unstyled Mode ("Look like when it was not styled at all") -->
+      <div class="settings-section nocturnal-container-outline">
+        <div class="settings-section-title">Visual Style</div>
+        <div class="settings-row">
+          <span>Strip all Nocturnal styling (raw unstyled look):</span>
+          <button id="btn-toggle-unstyled" type="button" class="nocturnal-box-fill" aria-pressed="false">
+            Unstyled Mode: OFF
+          </button>
+        </div>
+      </div>
+
+      <!-- 5. App Shortcuts Installer -->
+      <div class="settings-section nocturnal-container-outline">
+        <div class="settings-section-title">Desktop &amp; Start Menu Shortcuts</div>
+        <div class="settings-row">
+          <button id="btn-create-shortcuts" type="button" class="nocturnal-box-fill" title="Create Desktop and Start Menu shortcuts for Nocturnal player">
+            Install Desktop &amp; Start Menu Shortcuts
+          </button>
+        </div>
+      </div>
+
+      <!-- 6. Mystery Button -->
+      <div class="settings-section nocturnal-container-outline">
+        <div class="settings-section-title">Secret</div>
+        <div class="settings-row">
+          <button id="btn-mystery-jumpscare" type="button" class="nocturnal-box-outline primary-btn">
+            Mystery Button
+          </button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- FNAF 2 Withered Foxy Jumpscare Overlay -->
+  <div id="foxy-jumpscare-overlay" class="foxy-jumpscare-overlay" hidden>
+    <img id="foxy-jumpscare-img" src="assets/foxy_jumpscare.gif" alt="Withered Foxy Jumpscare" />
+  </div>
+
+  <audio id="jumpscare-audio" src="assets/foxy_scream.ogg" preload="auto"></audio>
+  <audio id="audio-element" crossorigin="anonymous"></audio>
+  <script src="renderer.js"></script>
+</body>
+</html>
