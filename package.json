@@ -1,7 +1,7 @@
 {
   "name": "nocturnal-player",
   "productName": "Nocturnal player",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Nocturnal player — standalone music player with 6 playlists, YT Music & timed lyrics, Discord Rich Presence, OGG/WAV/MP3, cover art, shuffle, loop 1/all, and wave visualizer.",
   "main": "main.js",
   "scripts": {
