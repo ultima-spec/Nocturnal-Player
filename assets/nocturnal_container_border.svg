@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 150" width="150" height="150">
+  <!-- White container border with chamfered corners and top-right nocturnal stripes (transparent interior) -->
+  <path
+    fill="#ffffff"
+    fill-rule="evenodd"
+    d="M 13.5,0 L 136.5,0 L 150,13.5 L 150,136.5 L 136.5,150 L 13.5,150 L 0,136.5 L 0,13.5 Z
+       M 15.8,5.5 L 95.5,5.5 L 144.5,54.5 L 144.5,134.2 L 134.2,144.5 L 15.8,144.5 L 5.5,134.2 L 5.5,15.8 Z
+       M 103.3,5.5 L 116.5,5.5 L 144.5,33.5 L 144.5,46.7 Z
+       M 124.3,5.5 L 134.2,5.5 L 144.5,15.8 L 144.5,25.7 Z"
+  />
+</svg>
