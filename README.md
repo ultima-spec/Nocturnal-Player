@@ -25,6 +25,11 @@
     
     <img width="306" height="175" alt="image" src="https://github.com/user-attachments/assets/9507ad01-1627-4a04-bfbc-a29052b85810" />
 
+  - **Tux** (He groovin)
+    
+    <img width="250" height="177" alt="Screenshot 2026-11-02 203340" src="https://github.com/user-attachments/assets/f1abf974-bef1-45dd-88e7-517494c0321f" />
+
+
   - Run any combination simultaneously in **Split** or **Overlay** view (please don't turn everything on in overlay view), adjust **Amplitude Sensitivity** (`5%`–`175%`), resize vertically, float as an independent window, or fullscreen on its own.
     <img width="1917" height="932" alt="image" src="https://github.com/user-attachments/assets/ae2e5681-fd2a-41a0-b2aa-fcfe0c18ebec" />
 
