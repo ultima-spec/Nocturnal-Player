@@ -1,6 +1,6 @@
 # Nocturnal Player
 
-**Nocturnal Player** is a standalone desktop music player built with Electron featuring an ULTRAKILL Nocturnal-inspired dark aesthetic, a Hyprland-style tiling & floating window manager, multi-mode audio visualizers (including a stereo XY Oscilloscope Music vectorscope), YouTube Music import with synced timed lyrics, and live Discord Rich Presence.
+**Nocturnal Player** is a standalone desktop music player built with Electron featuring an ULTRAKILL Nocturnal-inspired dark aesthetic, a Hyprland-style tiling & floating window manager, multi-mode audio visualizers (including a stereo XY Oscilloscope Music vectorscope), YouTube Music import with synced timed lyrics, and live Discord Rich Presence (it's very buggy please just turn it off at this point).
 
 ## Features
 - **Up to 6 Playlists**: Manage up to 6 independent playlists with custom names, custom per-track or fallback playlist cover art, and persistent state.
