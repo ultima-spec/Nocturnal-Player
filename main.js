@@ -546,6 +546,37 @@ app.whenReady().then(() => {
       return { ok: true };
     }
 
+    if (process.platform === 'linux') {
+      const os = require('os');
+      const homeDir = os.homedir();
+      const desktopDir = path.join(homeDir, 'Desktop');
+      const appsDir = path.join(homeDir, '.local', 'share', 'applications');
+      const pngIcon = path.join(__dirname, 'assets', '180px-soundtrack_(nocturnal_style).png').replace('app.asar', 'app.asar.unpacked');
+      const execCmd = isPackaged ? `"${electronExe}"` : `"${electronExe}" "${appDir}"`;
+      const desktopEntry = [
+        '[Desktop Entry]',
+        'Type=Application',
+        'Name=Nocturnal player',
+        'Comment=Nocturnal player — standalone desktop music player',
+        `Exec=${execCmd}`,
+        `Path=${appDir}`,
+        `Icon=${pngIcon}`,
+        'Terminal=false',
+        'Categories=AudioVideo;Audio;Player;'
+      ].join('\n');
+
+      try {
+        fs.mkdirSync(appsDir, { recursive: true });
+        const appEntryPath = path.join(appsDir, 'nocturnal-player.desktop');
+        fs.writeFileSync(appEntryPath, desktopEntry, { mode: 0o755 });
+        if (fs.existsSync(desktopDir)) {
+          const deskEntryPath = path.join(desktopDir, 'Nocturnal player.desktop');
+          fs.writeFileSync(deskEntryPath, desktopEntry, { mode: 0o755 });
+        }
+      } catch (_) {}
+      return { ok: true };
+    }
+
     const argsStr = isPackaged ? '' : `"${appDir.replace(/'/g, "''")}"`;
     const unpackedIcon = path.join(__dirname, 'assets', 'nocturnal.ico').replace('app.asar', 'app.asar.unpacked');
     const iconPath = fs.existsSync(unpackedIcon) ? unpackedIcon : electronExe;
@@ -614,7 +645,7 @@ foreach ($TargetDir in @($DesktopPath, $StartMenuPath)) {
       '--write-subs',
       '--write-auto-subs',
       '--sub-langs',
-      'en.*,en',
+      'en.*,en,ja.*,ja,zh.*,zh',
       '--output',
       path.join(jobDir, '%(playlist_index&{}-|)s%(title).90s.%(ext)s')
     ];
@@ -626,13 +657,13 @@ foreach ($TargetDir in @($DesktopPath, $StartMenuPath)) {
       if (useThumbnail) {
         args.push('--write-thumbnail', '--convert-thumbnails', 'jpg');
       }
-    } else if (process.platform === 'darwin') {
-      // Check common macOS Homebrew ffmpeg locations if bundled ffmpeg isn't present
-      const macFfmpeg = ['/opt/homebrew/bin/ffmpeg', '/usr/local/bin/ffmpeg'].find((p) =>
-        fs.existsSync(p)
+    } else if (process.platform === 'darwin' || process.platform === 'linux') {
+      // Check common macOS & Linux ffmpeg locations if bundled ffmpeg isn't present
+      const sysFfmpeg = ['/opt/homebrew/bin/ffmpeg', '/usr/local/bin/ffmpeg', '/usr/bin/ffmpeg', '/bin/ffmpeg'].find(
+        (p) => fs.existsSync(p)
       );
-      if (macFfmpeg) {
-        args.push('--ffmpeg-location', macFfmpeg);
+      if (sysFfmpeg) {
+        args.push('--ffmpeg-location', sysFfmpeg);
         args.push('--extract-audio', '--audio-format', ytDlpAudioFormat, '--audio-quality', '0');
         args.push('--convert-subs', 'lrc');
         if (useThumbnail) {
