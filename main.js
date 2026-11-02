@@ -645,7 +645,7 @@ foreach ($TargetDir in @($DesktopPath, $StartMenuPath)) {
       '--write-subs',
       '--write-auto-subs',
       '--sub-langs',
-      'en.*,en,ja.*,ja,zh.*,zh',
+      'en.*,en,ja.*,ja,zh.*,zh,ar.*,ar',
       '--output',
       path.join(jobDir, '%(playlist_index&{}-|)s%(title).90s.%(ext)s')
     ];
