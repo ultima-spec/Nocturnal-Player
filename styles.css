@@ -31,9 +31,34 @@
     U+FF00-FFEF; /* Halfwidth and Fullwidth Forms */
 }
 
+/* Arabic script ONLY mapped to PixelAE-Regular.ttf (Latin/CJK keep using VCR OSD Mono / Zpix) */
+@font-face {
+  font-family: 'NocturnalAR';
+  src: url('assets/PixelAE-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  unicode-range:
+    U+0600-06FF, /* Arabic */
+    U+0750-077F, /* Arabic Supplement */
+    U+0870-089F, /* Arabic Extended-B */
+    U+08A0-08FF, /* Arabic Extended-A */
+    U+FB50-FDFF, /* Arabic Presentation Forms-A */
+    U+FE70-FEFF; /* Arabic Presentation Forms-B */
+}
+
 * {
   box-sizing: border-box;
-  font-family: 'NocturnalJP', 'VCR OSD Mono', 'Zpix', monospace;
+  font-family: 'NocturnalAR', 'NocturnalJP', 'VCR OSD Mono', 'Zpix', monospace;
+}
+
+/* Let Arabic (RTL) lyric lines, track names & playlist names flow right-to-left automatically */
+.lyric-text,
+.tracklist-table td,
+#now-playing-title,
+.playlist-slot-btn span,
+#rename-input,
+#ytm-url-input {
+  unicode-bidi: plaintext;
 }
 
 :root {
@@ -53,7 +78,7 @@ html, body {
   margin: 0;
   padding: 0;
   height: 100%;
-  font-family: 'NocturnalJP', 'VCR OSD Mono', 'Zpix', monospace;
+  font-family: 'NocturnalAR', 'NocturnalJP', 'VCR OSD Mono', 'Zpix', monospace;
   font-size: 13px;
   color: var(--text-primary);
   background-color: var(--bg-deep);
