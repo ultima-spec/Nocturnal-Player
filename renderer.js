@@ -44,6 +44,7 @@ function getDefaultVisualizers() {
     bar: false,
     circle: false,
     xy: false,
+    tux: false,
     layout: 'split', // 'split' | 'overlay'
     height: 52,
     sensitivity: 0.7, // 0.05 .. 1.75
@@ -61,6 +62,7 @@ function sanitizeVisualizers(raw) {
     bar: Boolean(raw.bar),
     circle: Boolean(raw.circle),
     xy: Boolean(raw.xy),
+    tux: Boolean(raw.tux),
     layout: raw.layout === 'overlay' ? 'overlay' : 'split',
     height: typeof raw.height === 'number' ? Math.max(34, Math.min(800, Math.round(raw.height))) : def.height,
     sensitivity:
@@ -79,7 +81,7 @@ function sanitizeVisualizers(raw) {
     fullscreen: Boolean(raw.fullscreen),
     hidden: Boolean(raw.hidden)
   };
-  if (!vis.wave && !vis.bar && !vis.circle && !vis.xy) {
+  if (!vis.wave && !vis.bar && !vis.circle && !vis.xy && !vis.tux) {
     vis.wave = true;
   }
   return vis;
@@ -219,6 +221,7 @@ const btnVisWave = document.getElementById('btn-vis-wave');
 const btnVisBar = document.getElementById('btn-vis-bar');
 const btnVisCircle = document.getElementById('btn-vis-circle');
 const btnVisXy = document.getElementById('btn-vis-xy');
+const btnVisTux = document.getElementById('btn-vis-tux');
 const btnVisLayout = document.getElementById('btn-vis-layout');
 const visSensitivityBar = document.getElementById('vis-sensitivity-bar');
 const visSensitivityVal = document.getElementById('vis-sensitivity-val');
@@ -791,6 +794,9 @@ function updateVisualizerButtons() {
   if (btnVisXy) {
     btnVisXy.setAttribute('aria-pressed', String(Boolean(state.visualizers.xy)));
   }
+  if (btnVisTux) {
+    btnVisTux.setAttribute('aria-pressed', String(Boolean(state.visualizers.tux)));
+  }
   btnVisLayout.textContent = `VIEW: ${state.visualizers.layout.toUpperCase()}`;
   const sens = typeof state.visualizers.sensitivity === 'number' ? state.visualizers.sensitivity : 0.7;
   if (visSensitivityBar) {
@@ -922,7 +928,8 @@ function toggleVisualizerType(type) {
     !state.visualizers.wave &&
     !state.visualizers.bar &&
     !state.visualizers.circle &&
-    !state.visualizers.xy
+    !state.visualizers.xy &&
+    !state.visualizers.tux
   ) {
     state.visualizers[type] = true;
     setStatus('At least one visualizer must remain enabled.');
@@ -938,6 +945,9 @@ btnVisBar.addEventListener('click', () => toggleVisualizerType('bar'));
 btnVisCircle.addEventListener('click', () => toggleVisualizerType('circle'));
 if (btnVisXy) {
   btnVisXy.addEventListener('click', () => toggleVisualizerType('xy'));
+}
+if (btnVisTux) {
+  btnVisTux.addEventListener('click', () => toggleVisualizerType('tux'));
 }
 
 btnVisLayout.addEventListener('click', () => {
@@ -1423,6 +1433,213 @@ function drawXyScopeInViewport(vx, vy, vw, vh, isPaused) {
   canvasCtx.restore();
 }
 
+let tuxPhase = 0;
+
+function drawTuxInViewport(vx, vy, vw, vh, isPaused) {
+  canvasCtx.save();
+  canvasCtx.beginPath();
+  canvasCtx.rect(vx, vy, vw, vh);
+  canvasCtx.clip();
+
+  const sens = typeof state.visualizers.sensitivity === 'number' ? state.visualizers.sensitivity : 0.7;
+
+  let bass = 0;
+  let mid = 0;
+  let treble = 0;
+
+  if (!isPaused && freqDataArray) {
+    let bSum = 0;
+    for (let i = 0; i < 8; i++) bSum += freqDataArray[i];
+    bass = Math.min(1.5, (bSum / (8 * 255)) * sens);
+
+    let mSum = 0;
+    for (let i = 8; i < 40; i++) mSum += freqDataArray[i];
+    mid = Math.min(1.5, (mSum / (32 * 255)) * sens);
+
+    let tSum = 0;
+    for (let i = 40; i < 100; i++) tSum += freqDataArray[i];
+    treble = Math.min(1.5, (tSum / (60 * 255)) * sens);
+
+    tuxPhase += 0.14 + mid * 0.24 + bass * 0.12;
+  }
+
+  const cx = vx + vw / 2;
+  const floorY = vy + vh - Math.max(4, vh * 0.08);
+  const scale = Math.max(0.28, Math.min(vw / 110, (vh * 0.82) / 90));
+
+  // Subtle retro dance floor glow beneath Tux
+  const glowRadius = 28 * scale * (1 + bass * 0.45);
+  const grad = canvasCtx.createRadialGradient(cx, floorY, 2, cx, floorY, glowRadius);
+  grad.addColorStop(0, isPaused ? 'rgba(255, 204, 0, 0.18)' : 'rgba(255, 204, 0, 0.42)');
+  grad.addColorStop(1, 'rgba(255, 204, 0, 0)');
+  canvasCtx.fillStyle = grad;
+  canvasCtx.beginPath();
+  canvasCtx.ellipse(cx, floorY, glowRadius, Math.max(3, 7 * scale), 0, 0, Math.PI * 2);
+  canvasCtx.fill();
+
+  const bounceY = isPaused ? 0 : Math.abs(Math.sin(tuxPhase)) * 12 * scale * (0.35 + bass * 0.85);
+  const swayX = isPaused ? 0 : Math.sin(tuxPhase * 0.5) * 9 * scale * (0.3 + mid * 0.7);
+  const tiltAngle = isPaused ? 0 : Math.sin(tuxPhase * 0.5) * (0.14 + mid * 0.18);
+  const squashY = isPaused ? 1 : 1 + Math.sin(tuxPhase * 2) * 0.08 * bass;
+  const squashX = isPaused ? 1 : 1 - Math.sin(tuxPhase * 2) * 0.06 * bass;
+
+  canvasCtx.translate(cx + swayX, floorY - bounceY);
+  canvasCtx.rotate(tiltAngle);
+  canvasCtx.scale(scale * squashX, scale * squashY);
+
+  // Left & Right Orange Webbed Feet (tapping to the beat)
+  const leftFootTap = isPaused ? 0 : Math.max(0, Math.sin(tuxPhase)) * 0.35;
+  const rightFootTap = isPaused ? 0 : Math.max(0, -Math.sin(tuxPhase)) * 0.35;
+
+  canvasCtx.fillStyle = '#f5a623';
+  canvasCtx.strokeStyle = '#000000';
+  canvasCtx.lineWidth = 2;
+
+  // Left foot
+  canvasCtx.save();
+  canvasCtx.translate(-14, -4);
+  canvasCtx.rotate(-0.18 - leftFootTap);
+  canvasCtx.beginPath();
+  canvasCtx.ellipse(0, 0, 12, 5.5, 0, 0, Math.PI * 2);
+  canvasCtx.fill();
+  canvasCtx.stroke();
+  canvasCtx.restore();
+
+  // Right foot
+  canvasCtx.save();
+  canvasCtx.translate(14, -4);
+  canvasCtx.rotate(0.18 + rightFootTap);
+  canvasCtx.beginPath();
+  canvasCtx.ellipse(0, 0, 12, 5.5, 0, 0, Math.PI * 2);
+  canvasCtx.fill();
+  canvasCtx.stroke();
+  canvasCtx.restore();
+
+  // Flippers / Wings (flapping to mid + treble)
+  const leftWingAngle = isPaused
+    ? 0.35
+    : 0.55 + Math.sin(tuxPhase) * (0.55 + mid * 0.65) + treble * 0.35;
+  const rightWingAngle = isPaused
+    ? -0.35
+    : -0.55 + Math.cos(tuxPhase) * (0.55 + mid * 0.65) - treble * 0.35;
+
+  // Left flipper
+  canvasCtx.save();
+  canvasCtx.translate(-22, -42);
+  canvasCtx.rotate(leftWingAngle);
+  canvasCtx.fillStyle = '#14141c';
+  canvasCtx.strokeStyle = '#ffffff';
+  canvasCtx.lineWidth = 1.6;
+  canvasCtx.beginPath();
+  canvasCtx.ellipse(-8, 8, 6, 18, 0.3, 0, Math.PI * 2);
+  canvasCtx.fill();
+  canvasCtx.stroke();
+  canvasCtx.restore();
+
+  // Right flipper
+  canvasCtx.save();
+  canvasCtx.translate(22, -42);
+  canvasCtx.rotate(rightWingAngle);
+  canvasCtx.fillStyle = '#14141c';
+  canvasCtx.strokeStyle = '#ffffff';
+  canvasCtx.lineWidth = 1.6;
+  canvasCtx.beginPath();
+  canvasCtx.ellipse(8, 8, 6, 18, -0.3, 0, Math.PI * 2);
+  canvasCtx.fill();
+  canvasCtx.stroke();
+  canvasCtx.restore();
+
+  // Main Penguin Torso (Black outer body with crisp white outline)
+  canvasCtx.fillStyle = '#101016';
+  canvasCtx.strokeStyle = '#ffffff';
+  canvasCtx.lineWidth = 2;
+  canvasCtx.beginPath();
+  canvasCtx.ellipse(0, -34, 24, 29, 0, 0, Math.PI * 2);
+  canvasCtx.fill();
+  canvasCtx.stroke();
+
+  // Head
+  canvasCtx.beginPath();
+  canvasCtx.arc(0, -60, 17, 0, Math.PI * 2);
+  canvasCtx.fill();
+  canvasCtx.stroke();
+
+  // Merge neck smoothly over the head/torso seam
+  canvasCtx.fillStyle = '#101016';
+  canvasCtx.beginPath();
+  canvasCtx.ellipse(0, -48, 16, 12, 0, 0, Math.PI * 2);
+  canvasCtx.fill();
+
+  // White Belly
+  canvasCtx.fillStyle = '#f5f5fa';
+  canvasCtx.beginPath();
+  canvasCtx.ellipse(0, -31, 16.5, 22, 0, 0, Math.PI * 2);
+  canvasCtx.fill();
+
+  // Eyes (White ovals + reactive pupils)
+  const eyeLookupX = isPaused ? 0 : Math.sin(tuxPhase * 0.5) * 1.8;
+  canvasCtx.fillStyle = '#ffffff';
+  canvasCtx.strokeStyle = '#000000';
+  canvasCtx.lineWidth = 1.2;
+
+  canvasCtx.beginPath();
+  canvasCtx.ellipse(-5.5, -63, 4.2, 5.5, 0, 0, Math.PI * 2);
+  canvasCtx.fill();
+  canvasCtx.stroke();
+
+  canvasCtx.beginPath();
+  canvasCtx.ellipse(5.5, -63, 4.2, 5.5, 0, 0, Math.PI * 2);
+  canvasCtx.fill();
+  canvasCtx.stroke();
+
+  // Pupils
+  canvasCtx.fillStyle = '#000000';
+  canvasCtx.beginPath();
+  canvasCtx.arc(-5 + eyeLookupX, -63, 2.1, 0, Math.PI * 2);
+  canvasCtx.arc(5 + eyeLookupX, -63, 2.1, 0, Math.PI * 2);
+  canvasCtx.fill();
+
+  // Cool sunglasses when bass drops hard!
+  if (!isPaused && bass > 0.62) {
+    canvasCtx.fillStyle = '#050508';
+    canvasCtx.strokeStyle = '#ffffff';
+    canvasCtx.lineWidth = 1.4;
+    canvasCtx.fillRect(-13, -67, 11, 6.5);
+    canvasCtx.strokeRect(-13, -67, 11, 6.5);
+    canvasCtx.fillRect(2, -67, 11, 6.5);
+    canvasCtx.strokeRect(2, -67, 11, 6.5);
+    canvasCtx.beginPath();
+    canvasCtx.moveTo(-2, -65);
+    canvasCtx.lineTo(2, -65);
+    canvasCtx.stroke();
+  }
+
+  // Yellow-Orange Beak (opens & sings to mid/treble frequencies)
+  const beakOpen = isPaused ? 0 : Math.min(5, (mid + treble) * 3.5);
+  canvasCtx.fillStyle = '#ffb400';
+  canvasCtx.strokeStyle = '#000000';
+  canvasCtx.lineWidth = 1.3;
+  canvasCtx.beginPath();
+  canvasCtx.moveTo(-8, -56);
+  canvasCtx.quadraticCurveTo(0, -60, 8, -56);
+  canvasCtx.quadraticCurveTo(0, -50 + beakOpen, -8, -56);
+  canvasCtx.closePath();
+  canvasCtx.fill();
+  canvasCtx.stroke();
+
+  // Floating pixel music notes when music is playing
+  if (!isPaused) {
+    canvasCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    canvasCtx.font = '10px "VCR OSD Mono", monospace';
+    const noteOffset1 = (tuxPhase * 6) % 24;
+    const noteOffset2 = ((tuxPhase + 2) * 6) % 24;
+    canvasCtx.fillText('♪', -34 - noteOffset1 * 0.3, -55 - noteOffset1);
+    canvasCtx.fillText('♫', 26 + noteOffset2 * 0.3, -52 - noteOffset2);
+  }
+
+  canvasCtx.restore();
+}
+
 function renderVisualizerFrame() {
   const width = waveCanvas.width;
   const height = waveCanvas.height;
@@ -1445,6 +1662,7 @@ function renderVisualizerFrame() {
   if (state.visualizers.bar) activeModes.push('bar');
   if (state.visualizers.circle) activeModes.push('circle');
   if (state.visualizers.xy) activeModes.push('xy');
+  if (state.visualizers.tux) activeModes.push('tux');
   if (activeModes.length === 0) activeModes.push('wave');
 
   const renderModeAt = (mode, vx, vy, vw, vh) => {
@@ -1452,6 +1670,7 @@ function renderVisualizerFrame() {
     else if (mode === 'bar') drawBarInViewport(vx, vy, vw, vh, isPaused);
     else if (mode === 'circle') drawCircleInViewport(vx, vy, vw, vh, isPaused);
     else if (mode === 'xy') drawXyScopeInViewport(vx, vy, vw, vh, isPaused);
+    else if (mode === 'tux') drawTuxInViewport(vx, vy, vw, vh, isPaused);
   };
 
   if (state.visualizers.layout === 'overlay' || activeModes.length === 1) {
