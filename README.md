@@ -10,10 +10,21 @@
   - Import individual tracks or full playlists directly from **YouTube Music** URLs or search queries.
 - **Multi-Mode Audio Visualizers**:
   - **Wave** (Time-domain waveform)
+    <img width="308" height="173" alt="image" src="https://github.com/user-attachments/assets/a3466dae-a76d-4954-952f-c032c814e0f6" />
+
   - **Bar** (Logarithmic frequency spectrum with peak hold)
+    <img width="302" height="170" alt="image" src="https://github.com/user-attachments/assets/d308bc41-99da-4b03-8b62-c3da66fc416a" />
+
   - **Circle** (Radial spectrum + bass pulse ring)
+    <img width="301" height="171" alt="image" src="https://github.com/user-attachments/assets/dc469e8b-b4c4-449c-b1ed-1db06d9d6498" />
+
   - **XY Scope** (True stereo Left/Right channel Lissajous vectorscope for oscilloscope music)
-  - Run any combination simultaneously in **Split** or **Overlay** view, adjust **Amplitude Sensitivity** (`5%`–`175%`), resize vertically, float as an independent window, or fullscreen on its own.
+    <img width="306" height="175" alt="image" src="https://github.com/user-attachments/assets/9507ad01-1627-4a04-bfbc-a29052b85810" />
+
+  - Run any combination simultaneously in **Split** or **Overlay** view (please don't turn everything on in overlay view), adjust **Amplitude Sensitivity** (`5%`–`175%`), resize vertically, float as an independent window, or fullscreen on its own.
+    <img width="1917" height="932" alt="image" src="https://github.com/user-attachments/assets/ae2e5681-fd2a-41a0-b2aa-fcfe0c18ebec" />
+
+<img width="1917" height="933" alt="image" src="https://github.com/user-attachments/assets/b764fd2b-56f0-4605-98e4-d67a9b5fcf01" />
 - **Hyprland-Style Tiling & Floating Window Manager**:
   - Drag splitters, swap tiled containers, float any panel (`Alt+LMB` to move, `Alt+RMB` or 8-direction edges to resize), hide/restore individual panels, and save up to **6 Workspace Layouts (`L1`–`L6`)** including outer window dimensions.
 - **Shuffle Queue Reordering & Loop Modes**:
@@ -23,8 +34,8 @@
   - Auto-loads local `.lrc` / `.vtt` files, fetches synced lyrics from LRCLIB, or lets you load `.lrc` files manually with click-to-seek.
 - **Discord Rich Presence**:
   - Live Discord status updates with automatic cover art upload and an On/Off toggle in Settings.
-- **Ignore the Mystery button**:
-  -Ignore the mystery button 
+- **Ignore the mystery button**:
+  - Ignore the mystery button.
 
 ## Installers (Releases)
 - **Windows (`Nocturnal-Player-Setup.exe`)**: Single-file Windows setup executable that installs `Nocturnal player`, creates Desktop & Start Menu shortcuts, and registers an uninstaller.
