@@ -37,9 +37,12 @@
   - Loop modes: `Loop: OFF`, `Loop: ALL`, and `Loop: 1`.
     
 - **Synced Timed Lyrics**:
-  - Auto-loads local `.lrc` / `.vtt` files, fetches synced lyrics from LRCLIB, or lets you load `.lrc` files manually with click-to-seek in English, Chinese, and Japanese.
+  - Auto-loads local `.lrc` / `.vtt` files, fetches synced lyrics from LRCLIB, or lets you load `.lrc` files manually with click-to-seek in English, Simplified Chinese, Traditional Chinese, Korean and Japanese.
 
     <img width="457" height="471" alt="image" src="https://github.com/user-attachments/assets/b916c5b0-c740-4d38-a562-2d502719b1c4" />
+
+    <img width="457" height="465" alt="image" src="https://github.com/user-attachments/assets/f57a2775-1f76-49af-a603-a844e539134e" />
+
 
 - **Discord Rich Presence**:
   - Live Discord status updates with automatic cover art upload and an On/Off toggle in Settings.
