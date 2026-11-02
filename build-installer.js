@@ -168,7 +168,7 @@ namespace NocturnalInstaller
 
             Label lblSubtitle = new Label
             {
-                Text = "Install Nocturnal player v1.0.0 to your computer",
+                Text = "Install Nocturnal player v1.1.0 to your computer",
                 Font = new Font("Consolas", 9f, FontStyle.Regular),
                 ForeColor = Color.FromArgb(176, 176, 190),
                 Location = new Point(16, 38),
@@ -438,7 +438,7 @@ namespace NocturnalInstaller
                         if (key != null)
                         {
                             key.SetValue("DisplayName", "Nocturnal player");
-                            key.SetValue("DisplayVersion", "1.0.0");
+                            key.SetValue("DisplayVersion", "1.1.0");
                             key.SetValue("Publisher", "Nocturnal");
                             key.SetValue("DisplayIcon", iconPath);
                             key.SetValue("InstallLocation", targetDir);
