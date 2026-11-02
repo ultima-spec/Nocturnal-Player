@@ -37,7 +37,7 @@
   - Loop modes: `Loop: OFF`, `Loop: ALL`, and `Loop: 1`.
     
 - **Synced Timed Lyrics**:
-  - Auto-loads local `.lrc` / `.vtt` files, fetches synced lyrics from LRCLIB, or lets you load `.lrc` files manually with click-to-seek.
+  - Auto-loads local `.lrc` / `.vtt` files, fetches synced lyrics from LRCLIB, or lets you load `.lrc` files manually with click-to-seek in English, Chinese, and Japanese.
 
     <img width="457" height="471" alt="image" src="https://github.com/user-attachments/assets/b916c5b0-c740-4d38-a562-2d502719b1c4" />
 
