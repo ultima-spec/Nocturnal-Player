@@ -62,10 +62,63 @@ function createWindow() {
   mainWindow = win;
 }
 
+const SOUND_CUE_REGEX =
+  /^(\[|\()?(music|applause|cheering|laughter|silence|sound|instrumental|intro|outro|interlude|solo|singing|guitar|piano|beat|drop|snicker|sigh|screaming|cheers|screams|__|\?\?\?|>>|-)+(\]|\))?$/i;
+
+function isSoundCueOnly(text) {
+  if (!text) return true;
+  const cleaned = text.trim();
+  if (cleaned === '>>' || cleaned === '-' || cleaned === '---') return true;
+  return SOUND_CUE_REGEX.test(cleaned);
+}
+
+function isAutoCaptionText(text) {
+  if (!text || typeof text !== 'string') return false;
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.replace(/\[\d+:\d+(?:\.\d+)?\]/g, '').trim())
+    .filter(Boolean);
+  if (lines.length === 0) return false;
+  let cueCount = 0;
+  for (const l of lines) {
+    if (isSoundCueOnly(l)) cueCount++;
+  }
+  return cueCount >= 2 || cueCount / lines.length >= 0.2;
+}
+
+function isInstrumentalTrack(name) {
+  if (!name || typeof name !== 'string') return false;
+  return /\b(instrumental|inst\b|karaoke|backing track|off vocal|no vocals?)\b/i.test(name);
+}
+
+function normalizeTitle(str) {
+  return String(str || '')
+    .toLowerCase()
+    .replace(
+      /\b(instrumental|inst|official|remastered|remaster|video|audio|version|edit|extended|mix|deluxe|bonus|track|hd|4k|\d{4})\b/gi,
+      ''
+    )
+    .replace(/[^a-z0-9]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isStrictTitleMatch(query, candidate) {
+  const q = normalizeTitle(query);
+  const c = normalizeTitle(candidate);
+  if (!q || !c) return false;
+  return q === c;
+}
+
 // Parse .lrc or .vtt or plain text into { synced: boolean, lines: [{ time: number | null, text: string }] }
 function parseLyricsContent(rawText) {
   if (!rawText || typeof rawText !== 'string') {
     return { synced: false, lines: [] };
+  }
+
+  // Reject entire text if it is an auto-caption dump
+  if (isAutoCaptionText(rawText)) {
+    return { synced: false, lines: [], isCaption: true };
   }
 
   const lines = rawText.split(/\r?\n/);
@@ -102,10 +155,10 @@ function parseLyricsContent(rawText) {
           .trim()
           .replace(/<[^>]+>/g, '') // Strip VTT inline tags like <00:00:01.000><c>
           .trim();
-        if (cleaned) cueTextParts.push(cleaned);
+        if (cleaned && !isSoundCueOnly(cleaned)) cueTextParts.push(cleaned);
       }
       const text = cueTextParts.join(' ');
-      if (text && (timedEntries.length === 0 || timedEntries[timedEntries.length - 1].text !== text)) {
+      if (text && !isSoundCueOnly(text) && (timedEntries.length === 0 || timedEntries[timedEntries.length - 1].text !== text)) {
         timedEntries.push({ time: timeSec, text });
       }
       continue;
@@ -115,17 +168,21 @@ function parseLyricsContent(rawText) {
     const matches = [...rawLine.matchAll(lrcRegex)];
     if (matches.length > 0) {
       const lyricText = rawLine.replace(lrcRegex, '').trim();
-      for (const m of matches) {
-        const mins = parseInt(m[1], 10);
-        const secs = parseInt(m[2], 10);
-        const frac = m[3] ? parseInt(m[3].padEnd(3, '0'), 10) / 1000 : 0;
-        const timeSec = mins * 60 + secs + frac;
-        if (lyricText) {
-          timedEntries.push({ time: timeSec, text: lyricText });
+      if (!isSoundCueOnly(lyricText)) {
+        for (const m of matches) {
+          const mins = parseInt(m[1], 10);
+          const secs = parseInt(m[2], 10);
+          const frac = m[3] ? parseInt(m[3].padEnd(3, '0'), 10) / 1000 : 0;
+          const timeSec = mins * 60 + secs + frac;
+          if (lyricText) {
+            timedEntries.push({ time: timeSec, text: lyricText });
+          }
         }
       }
     } else if (!/^\d+$/.test(rawLine)) {
-      plainEntries.push({ time: null, text: rawLine });
+      if (!isSoundCueOnly(rawLine)) {
+        plainEntries.push({ time: null, text: rawLine });
+      }
     }
   }
 
@@ -137,7 +194,11 @@ function parseLyricsContent(rawText) {
   return { synced: false, lines: plainEntries };
 }
 
-function findLocalLyricsForTrack(folderPath, trackBaseName) {
+function findLocalLyricsForTrack(folderPath, trackBaseName, allowCaptions = false) {
+  if (isInstrumentalTrack(trackBaseName)) {
+    return { instrumental: true, synced: false, lines: [] };
+  }
+
   try {
     const entries = fs.readdirSync(folderPath, { withFileTypes: true });
     const lowerBase = trackBaseName.toLowerCase();
@@ -148,12 +209,36 @@ function findLocalLyricsForTrack(folderPath, trackBaseName) {
       if (!LYRIC_EXTENSIONS.has(ext)) continue;
 
       const nameNoExt = path.basename(entry.name, path.extname(entry.name)).toLowerCase();
-      // Match exact basename (Song.lrc) or language-tagged subtitle (Song.en.lrc, Song.en-US.vtt)
-      if (nameNoExt === lowerBase || nameNoExt.startsWith(lowerBase + '.')) {
+      // Exact match (Song.lrc or Song.txt)
+      if (nameNoExt === lowerBase) {
         const raw = fs.readFileSync(path.join(folderPath, entry.name), 'utf-8');
+        if (isAutoCaptionText(raw)) {
+          continue; // Skip video auto-captions
+        }
         const parsed = parseLyricsContent(raw);
-        if (parsed.lines.length > 0) {
+        if (parsed.lines.length > 0 && !parsed.isCaption) {
           return parsed;
+        }
+      }
+    }
+
+    if (allowCaptions) {
+      for (const entry of entries) {
+        if (!entry.isFile()) continue;
+        const ext = path.extname(entry.name).toLowerCase();
+        if (!LYRIC_EXTENSIONS.has(ext)) continue;
+
+        const nameNoExt = path.basename(entry.name, path.extname(entry.name)).toLowerCase();
+        // Language-tagged subtitle (Song.en.lrc, Song.en-US.vtt)
+        if (nameNoExt.startsWith(lowerBase + '.')) {
+          const raw = fs.readFileSync(path.join(folderPath, entry.name), 'utf-8');
+          if (isAutoCaptionText(raw)) {
+            continue;
+          }
+          const parsed = parseLyricsContent(raw);
+          if (parsed.lines.length > 0 && !parsed.isCaption) {
+            return parsed;
+          }
         }
       }
     }
@@ -205,6 +290,10 @@ function fetchJsonHttps(url) {
 }
 
 async function fetchLyricsFromLrclib(trackName, durationSec = 0) {
+  if (isInstrumentalTrack(trackName)) {
+    return { instrumental: true, rawLrc: '', parsed: { instrumental: true, synced: false, lines: [] } };
+  }
+
   const cleaned = cleanTrackQuery(trackName);
   if (!cleaned) return null;
 
@@ -214,9 +303,42 @@ async function fetchLyricsFromLrclib(trackName, durationSec = 0) {
     return null;
   }
 
+  // Filter ONLY results where trackName strictly matches the queried track name
+  const matchingResults = results.filter((r) => r && isStrictTitleMatch(cleaned, r.trackName));
+  if (matchingResults.length === 0) {
+    return null;
+  }
+
+  // If LRCLIB marks the matching track as instrumental, honor it!
+  const instrumentalMatch = matchingResults.find((r) => r.instrumental === true);
+  if (instrumentalMatch && !matchingResults.some((r) => r.syncedLyrics)) {
+    return { instrumental: true, rawLrc: '', parsed: { instrumental: true, synced: false, lines: [] } };
+  }
+
+  // Duration verification:
+  let candidates = matchingResults;
+  if (durationSec > 0) {
+    const durationMatching = matchingResults.filter(
+      (r) => r && typeof r.duration === 'number' && Math.abs(r.duration - durationSec) <= 4
+    );
+    if (durationMatching.length > 0) {
+      candidates = durationMatching;
+    } else {
+      // None of the matching songs match the track's duration within 4 seconds!
+      return null;
+    }
+  } else {
+    // If durationSec is not provided, do NOT guess for short/generic titles without an artist
+    const words = cleaned.split(/\s+/).filter(Boolean);
+    if (words.length < 3 && !trackName.includes(' - ')) {
+      return null;
+    }
+  }
+
   // Prefer results that have syncedLyrics and closest duration if durationSec is known
-  const withSynced = results.filter((r) => r && typeof r.syncedLyrics === 'string' && r.syncedLyrics.trim());
-  let chosen = null;
+  const withSynced = candidates.filter(
+    (r) => r && !r.instrumental && typeof r.syncedLyrics === 'string' && r.syncedLyrics.trim()
+  );
 
   if (withSynced.length > 0) {
     if (durationSec > 0) {
@@ -224,19 +346,159 @@ async function fetchLyricsFromLrclib(trackName, durationSec = 0) {
         (a, b) => Math.abs((a.duration || 0) - durationSec) - Math.abs((b.duration || 0) - durationSec)
       );
     }
-    chosen = withSynced[0];
-    return {
-      rawLrc: chosen.syncedLyrics,
-      parsed: parseLyricsContent(chosen.syncedLyrics)
-    };
+    for (const item of withSynced) {
+      const parsed = parseLyricsContent(item.syncedLyrics);
+      if (parsed && parsed.lines.length > 0 && !parsed.isCaption) {
+        return {
+          rawLrc: item.syncedLyrics,
+          parsed
+        };
+      }
+    }
   }
 
-  const withPlain = results.find((r) => r && typeof r.plainLyrics === 'string' && r.plainLyrics.trim());
+  const withPlain = candidates.find(
+    (r) => r && !r.instrumental && typeof r.plainLyrics === 'string' && r.plainLyrics.trim()
+  );
   if (withPlain) {
-    return {
-      rawLrc: withPlain.plainLyrics,
-      parsed: parseLyricsContent(withPlain.plainLyrics)
-    };
+    const parsed = parseLyricsContent(withPlain.plainLyrics);
+    if (parsed && parsed.lines.length > 0 && !parsed.isCaption) {
+      return {
+        rawLrc: withPlain.plainLyrics,
+        parsed
+      };
+    }
+  }
+
+  return null;
+}
+
+function postJsonHttps(url, data) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const body = JSON.stringify(data);
+    const req = https.request(
+      {
+        hostname: u.hostname,
+        path: u.pathname + u.search,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          Origin: 'https://music.youtube.com',
+          Referer: 'https://music.youtube.com/'
+        }
+      },
+      (res) => {
+        let d = '';
+        res.on('data', (c) => (d += c));
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(d));
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }
+    );
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+async function fetchLyricsFromYTM(trackNameOrQuery, knownVideoId = null) {
+  if (isInstrumentalTrack(trackNameOrQuery)) {
+    return { instrumental: true, rawLrc: '', parsed: { instrumental: true, synced: false, lines: [] }, source: 'ytm' };
+  }
+
+  const context = {
+    client: {
+      clientName: 'WEB_REMIX',
+      clientVersion: '1.20240101.01.00',
+      hl: 'en'
+    }
+  };
+
+  let videoId = knownVideoId;
+
+  if (!videoId && trackNameOrQuery) {
+    const raw = String(trackNameOrQuery).trim();
+    if (/^[a-zA-Z0-9_-]{11}$/.test(raw)) {
+      videoId = raw;
+    } else {
+      const urlMatch = raw.match(/(?:v=|\/v\/|youtu\.be\/|\/embed\/)([a-zA-Z0-9_-]{11})/);
+      if (urlMatch) {
+        videoId = urlMatch[1];
+      }
+    }
+  }
+
+  // If still no videoId, search YouTube Music and verify that the title strictly matches
+  if (!videoId && trackNameOrQuery) {
+    const cleanedQuery = cleanTrackQuery(trackNameOrQuery);
+    const words = (cleanedQuery || trackNameOrQuery).split(/\s+/).filter(Boolean);
+    // Do not blind search YouTube Music for 1-word or 2-word titles without an artist
+    if (words.length >= 3 || String(trackNameOrQuery).includes(' - ')) {
+      try {
+        const searchRes = await postJsonHttps('https://music.youtube.com/youtubei/v1/search', {
+          context,
+          query: cleanedQuery || trackNameOrQuery
+        });
+        const card =
+          searchRes?.contents?.tabbedSearchResultsRenderer?.tabs?.[0]?.tabRenderer?.content?.sectionListRenderer?.contents?.[0]
+            ?.musicCardShelfRenderer;
+        if (card) {
+          const cardTitle = card.title?.runs?.[0]?.text;
+          const cardVideoId = card.title?.runs?.[0]?.navigationEndpoint?.watchEndpoint?.videoId;
+          if (cardTitle && cardVideoId && isStrictTitleMatch(cleanedQuery || trackNameOrQuery, cardTitle)) {
+            videoId = cardVideoId;
+          }
+        }
+      } catch (_) {
+        // Search failed
+      }
+    }
+  }
+
+  if (!videoId) return null;
+
+  try {
+    const nextRes = await postJsonHttps('https://music.youtube.com/youtubei/v1/next', {
+      context,
+      videoId
+    });
+
+    const nextStr = JSON.stringify(nextRes);
+    const mplyMatch = nextStr.match(/"browseId":"(MPLY[a-zA-Z0-9_-]+)"/);
+    if (!mplyMatch) {
+      return null;
+    }
+
+    const browseRes = await postJsonHttps('https://music.youtube.com/youtubei/v1/browse', {
+      context,
+      browseId: mplyMatch[1]
+    });
+
+    const desc =
+      browseRes?.contents?.sectionListRenderer?.contents?.[0]?.musicDescriptionShelfRenderer?.description?.runs;
+    if (desc && Array.isArray(desc)) {
+      const rawText = desc.map((r) => r.text).join('').trim();
+      if (rawText && !isAutoCaptionText(rawText)) {
+        const parsed = parseLyricsContent(rawText);
+        if (parsed && parsed.lines.length > 0 && !parsed.isCaption) {
+          return {
+            rawLrc: rawText,
+            parsed,
+            videoId,
+            source: 'ytm'
+          };
+        }
+      }
+    }
+  } catch (_) {
+    // Network or parse error
   }
 
   return null;
@@ -281,7 +543,22 @@ function scanFolderForMedia(folderPath, includeThumbnails = true) {
       const matchedTrackImage = includeThumbnails
         ? imageFiles.get(baseName.toLowerCase()) || null
         : null;
-      const localLyrics = findLocalLyricsForTrack(folderPath, baseName);
+      const isInst = isInstrumentalTrack(baseName);
+      let localLyrics = null;
+      if (isInst) {
+        localLyrics = { instrumental: true, synced: false, lines: [] };
+      } else {
+        localLyrics = findLocalLyricsForTrack(folderPath, baseName);
+      }
+
+      let videoId = null;
+      const infoPath = path.join(folderPath, `${baseName}.info.json`);
+      if (fs.existsSync(infoPath)) {
+        try {
+          const info = JSON.parse(fs.readFileSync(infoPath, 'utf-8'));
+          if (info && info.id) videoId = String(info.id);
+        } catch (_) {}
+      }
 
       audioFiles.push({
         name: baseName,
@@ -290,7 +567,9 @@ function scanFolderForMedia(folderPath, includeThumbnails = true) {
         path: fullPath,
         url: pathToFileURL(fullPath).href,
         coverUrl: matchedTrackImage ? pathToFileURL(matchedTrackImage).href : null,
-        lyrics: localLyrics || null
+        lyrics: localLyrics || null,
+        videoId: videoId || null,
+        isInstrumental: isInst
       });
     }
   }
@@ -438,21 +717,54 @@ app.whenReady().then(() => {
   ipcMain.handle('lyrics:fetch', async (_event, payload) => {
     const trackName = payload && payload.trackName ? String(payload.trackName) : '';
     const filePath = payload && payload.filePath ? String(payload.filePath) : '';
+    const videoId = payload && payload.videoId ? String(payload.videoId) : '';
     const duration = payload && payload.duration ? Number(payload.duration) : 0;
+    const isManual = Boolean(payload && payload.manual);
 
-    if (filePath && fs.existsSync(filePath)) {
+    if (isInstrumentalTrack(trackName)) {
+      return { instrumental: true, synced: false, lines: [] };
+    }
+
+    // If this is an automatic background fetch (not manual button click) and local clean lyrics exist, use them
+    if (!isManual && filePath && fs.existsSync(filePath)) {
       const dir = path.dirname(filePath);
       const baseName = path.basename(filePath, path.extname(filePath));
-      const local = findLocalLyricsForTrack(dir, baseName);
-      if (local && local.lines.length > 0) {
+      const local = findLocalLyricsForTrack(dir, baseName, false);
+      if (local && (local.instrumental || (local.lines && local.lines.length > 0))) {
         return local;
       }
     }
 
+    // 1. Attempt to fetch actual song lyrics from YouTube Music (prefer YTM lyrics over captions!)
+    try {
+      const ytm = await fetchLyricsFromYTM(trackName, videoId);
+      if (ytm && ytm.instrumental) {
+        return { instrumental: true, synced: false, lines: [] };
+      }
+      if (ytm && ytm.parsed && ytm.parsed.lines.length > 0 && !ytm.parsed.isCaption) {
+        if (filePath && fs.existsSync(filePath)) {
+          try {
+            const lrcPath = path.join(
+              path.dirname(filePath),
+              path.basename(filePath, path.extname(filePath)) + '.lrc'
+            );
+            fs.writeFileSync(lrcPath, ytm.rawLrc, 'utf-8');
+          } catch (_) {}
+        }
+        return {
+          ...ytm.parsed,
+          source: 'ytm'
+        };
+      }
+    } catch (_) {}
+
+    // 2. Fallback: If YouTube Music has no lyrics tab, check LRCLIB for actual song lyrics
     try {
       const fetched = await fetchLyricsFromLrclib(trackName, duration);
-      if (fetched && fetched.parsed && fetched.parsed.lines.length > 0) {
-        // Cache .lrc file alongside the audio file if possible
+      if (fetched && fetched.instrumental) {
+        return { instrumental: true, synced: false, lines: [] };
+      }
+      if (fetched && fetched.parsed && fetched.parsed.lines.length > 0 && !fetched.parsed.isCaption) {
         if (filePath && fs.existsSync(filePath)) {
           try {
             const lrcPath = path.join(
@@ -460,17 +772,42 @@ app.whenReady().then(() => {
               path.basename(filePath, path.extname(filePath)) + '.lrc'
             );
             fs.writeFileSync(lrcPath, fetched.rawLrc, 'utf-8');
-          } catch (_) {
-            // Ignore write errors
+          } catch (_) {}
+        }
+        return {
+          ...fetched.parsed,
+          source: 'lrclib'
+        };
+      }
+    } catch (_) {}
+
+    // Do NOT return captions!
+    return null;
+  });
+
+  ipcMain.handle('lyrics:delete', async (_event, filePath) => {
+    if (filePath && typeof filePath === 'string' && fs.existsSync(filePath)) {
+      try {
+        const dir = path.dirname(filePath);
+        const baseName = path.basename(filePath, path.extname(filePath));
+        const entries = fs.readdirSync(dir);
+        for (const f of entries) {
+          const ext = path.extname(f).toLowerCase();
+          if (['.lrc', '.vtt', '.txt'].includes(ext)) {
+            const nameNoExt = path.basename(f, ext);
+            if (
+              nameNoExt.toLowerCase() === baseName.toLowerCase() ||
+              nameNoExt.toLowerCase().startsWith(baseName.toLowerCase() + '.')
+            ) {
+              try {
+                fs.unlinkSync(path.join(dir, f));
+              } catch (_) {}
+            }
           }
         }
-        return fetched.parsed;
-      }
-    } catch (_) {
-      // Ignore network errors
+      } catch (_) {}
     }
-
-    return null;
+    return { ok: true };
   });
 
   ipcMain.handle('discord:update', async (_event, activityData) => {
@@ -642,10 +979,7 @@ foreach ($TargetDir in @($DesktopPath, $StartMenuPath)) {
       '--no-mtime',
       '--yes-playlist',
       '--ignore-errors',
-      '--write-subs',
-      '--write-auto-subs',
-      '--sub-langs',
-      'en.*,en,ja.*,ja,zh.*,zh,ar.*,ar',
+      '--write-info-json',
       '--output',
       path.join(jobDir, '%(playlist_index&{}-|)s%(title).90s.%(ext)s')
     ];
@@ -653,7 +987,6 @@ foreach ($TargetDir in @($DesktopPath, $StartMenuPath)) {
     if (ffmpegStaticPath && fs.existsSync(ffmpegStaticPath)) {
       args.push('--ffmpeg-location', ffmpegStaticPath);
       args.push('--extract-audio', '--audio-format', ytDlpAudioFormat, '--audio-quality', '0');
-      args.push('--convert-subs', 'lrc');
       if (useThumbnail) {
         args.push('--write-thumbnail', '--convert-thumbnails', 'jpg');
       }
@@ -665,7 +998,6 @@ foreach ($TargetDir in @($DesktopPath, $StartMenuPath)) {
       if (sysFfmpeg) {
         args.push('--ffmpeg-location', sysFfmpeg);
         args.push('--extract-audio', '--audio-format', ytDlpAudioFormat, '--audio-quality', '0');
-        args.push('--convert-subs', 'lrc');
         if (useThumbnail) {
           args.push('--write-thumbnail', '--convert-thumbnails', 'jpg');
         }
@@ -722,22 +1054,53 @@ foreach ($TargetDir in @($DesktopPath, $StartMenuPath)) {
       });
     });
 
-    // Scan downloaded tracks and enrich with synced lyrics from LRCLIB if not already synced
+    // Scan downloaded tracks and prefer actual lyrics from YouTube Music over captions
     const scanned = scanFolderForMedia(jobDir, useThumbnail);
     for (const track of scanned.tracks) {
-      if (!track.lyrics || !track.lyrics.synced) {
-        try {
-          sendProgress(`Fetching timed lyrics for "${track.name}"...`);
-          const lrclib = await fetchLyricsFromLrclib(track.name);
-          if (lrclib && lrclib.parsed && lrclib.parsed.lines.length > 0) {
-            track.lyrics = lrclib.parsed;
-            const lrcPath = path.join(jobDir, `${track.name}.lrc`);
-            fs.writeFileSync(lrcPath, lrclib.rawLrc, 'utf-8');
-          }
-        } catch (_) {
-          // Keep existing subtitle lyrics if LRCLIB is unreachable
-        }
+      if (track.isInstrumental || isInstrumentalTrack(track.name)) {
+        track.isInstrumental = true;
+        track.lyrics = { instrumental: true, synced: false, lines: [] };
+        continue;
       }
+
+      // 1. Prefer actual song lyrics from YouTube Music official lyrics tab
+      try {
+        sendProgress(`Fetching YouTube Music lyrics for "${track.name}"...`);
+        const ytmLyrics = await fetchLyricsFromYTM(track.name, track.videoId);
+        if (ytmLyrics && ytmLyrics.instrumental) {
+          track.isInstrumental = true;
+          track.lyrics = { instrumental: true, synced: false, lines: [] };
+          continue;
+        }
+        if (ytmLyrics && ytmLyrics.parsed && ytmLyrics.parsed.lines.length > 0 && !ytmLyrics.parsed.isCaption) {
+          track.lyrics = {
+            ...ytmLyrics.parsed,
+            source: 'ytm'
+          };
+          const lrcPath = path.join(jobDir, `${track.name}.lrc`);
+          fs.writeFileSync(lrcPath, ytmLyrics.rawLrc, 'utf-8');
+          continue;
+        }
+      } catch (_) {}
+
+      // 2. Fallback: If YTM has no lyrics tab, check LRCLIB for actual song lyrics
+      try {
+        sendProgress(`Checking LRCLIB for "${track.name}"...`);
+        const lrclib = await fetchLyricsFromLrclib(track.name);
+        if (lrclib && lrclib.instrumental) {
+          track.isInstrumental = true;
+          track.lyrics = { instrumental: true, synced: false, lines: [] };
+          continue;
+        }
+        if (lrclib && lrclib.parsed && lrclib.parsed.lines.length > 0 && !lrclib.parsed.isCaption) {
+          track.lyrics = {
+            ...lrclib.parsed,
+            source: 'lrclib'
+          };
+          const lrcPath = path.join(jobDir, `${track.name}.lrc`);
+          fs.writeFileSync(lrcPath, lrclib.rawLrc, 'utf-8');
+        }
+      } catch (_) {}
     }
 
     return scanned;
