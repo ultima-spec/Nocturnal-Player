@@ -254,6 +254,7 @@ const tracklistBody = document.getElementById('tracklist-body');
 const lyricsSyncBadge = document.getElementById('lyrics-sync-badge');
 const btnFetchLyrics = document.getElementById('btn-fetch-lyrics');
 const btnLoadLrc = document.getElementById('btn-load-lrc');
+const btnClearLyrics = document.getElementById('btn-clear-lyrics');
 const lyricsContainer = document.getElementById('lyrics-container');
 
 const renameDialog = document.getElementById('rename-dialog');
@@ -2464,6 +2465,25 @@ function parseLrcInBrowser(rawText) {
   return { synced: false, lines: plain };
 }
 
+function isInstrumentalTrack(name) {
+  if (!name || typeof name !== 'string') return false;
+  return /\b(instrumental|inst\b|karaoke|backing track|off vocal|no vocals?)\b/i.test(name);
+}
+
+function isAutoCaptionLines(lines) {
+  if (!Array.isArray(lines) || lines.length === 0) return false;
+  const soundCueRegex =
+    /^(\[|\()?(music|applause|cheering|laughter|silence|sound|instrumental|intro|outro|interlude|solo|singing|guitar|piano|beat|drop|snicker|sigh|screaming|cheers|screams|__|\?\?\?|>>|-)+(\]|\))?$/i;
+  let cues = 0;
+  for (const item of lines) {
+    const txt = (item.text || '').trim();
+    if (soundCueRegex.test(txt) || txt === '>>' || txt === '-') {
+      cues++;
+    }
+  }
+  return cues >= 2 || cues / lines.length >= 0.2;
+}
+
 function renderLyricsPanel(forceRebuild = false) {
   const track = getCurrentTrack();
 
@@ -2474,6 +2494,17 @@ function renderLyricsPanel(forceRebuild = false) {
     lyricsContainer.innerHTML =
       '<div class="lyrics-placeholder">Play a YT Music song or local track to display timed lyrics here.</div>';
     return;
+  }
+
+  // Purge any leftover video caption dumps (e.g. [Music]) from saved track state
+  if (track.lyrics && Array.isArray(track.lyrics.lines) && isAutoCaptionLines(track.lyrics.lines)) {
+    track.lyrics = null;
+  }
+
+  // Auto-detect and normalize instrumental tracks
+  if (track.isInstrumental || isInstrumentalTrack(track.name) || (track.lyrics && track.lyrics.instrumental)) {
+    track.isInstrumental = true;
+    track.lyrics = { instrumental: true, synced: false, lines: [] };
   }
 
   if (!forceRebuild && renderedLyricsTrackRef === track) {
@@ -2487,11 +2518,19 @@ function renderLyricsPanel(forceRebuild = false) {
 
   const lyricsData = track.lyrics;
   if (!lyricsData || !Array.isArray(lyricsData.lines) || lyricsData.lines.length === 0) {
-    lyricsSyncBadge.textContent = 'NO LYRICS';
-    const placeholder = document.createElement('div');
-    placeholder.className = 'lyrics-placeholder';
-    placeholder.textContent = `No timed lyrics loaded for "${track.name}". Click "Fetch Lyrics" or "Load .LRC".`;
-    lyricsContainer.appendChild(placeholder);
+    if (track.isInstrumental) {
+      lyricsSyncBadge.textContent = 'INSTRUMENTAL';
+      const placeholder = document.createElement('div');
+      placeholder.className = 'lyrics-placeholder';
+      placeholder.textContent = 'Instrumental track — No lyrics.';
+      lyricsContainer.appendChild(placeholder);
+    } else {
+      lyricsSyncBadge.textContent = 'NO LYRICS';
+      const placeholder = document.createElement('div');
+      placeholder.className = 'lyrics-placeholder';
+      placeholder.textContent = `No timed lyrics loaded for "${track.name}". Click "Fetch Lyrics" or "Load .LRC".`;
+      lyricsContainer.appendChild(placeholder);
+    }
     return;
   }
 
@@ -2568,6 +2607,17 @@ async function fetchLyricsForCurrentTrack(manualTrigger = false) {
     return;
   }
 
+  if (track.isInstrumental || isInstrumentalTrack(track.name)) {
+    track.isInstrumental = true;
+    track.lyrics = { instrumental: true, synced: false, lines: [] };
+    renderLyricsPanel(true);
+    await saveAppState();
+    if (manualTrigger) {
+      setStatus(`"${track.name}" is an instrumental track (no lyrics).`);
+    }
+    return;
+  }
+
   if (!window.musicAPI || !window.musicAPI.fetchLyrics) {
     if (manualTrigger) setStatus('Use "Load .LRC" when running in a browser.');
     return;
@@ -2575,25 +2625,40 @@ async function fetchLyricsForCurrentTrack(manualTrigger = false) {
 
   lyricsSyncBadge.textContent = 'SEARCHING...';
   if (manualTrigger) {
-    setStatus(`Searching timed lyrics for "${track.name}"...`);
+    setStatus(`Searching YouTube Music lyrics for "${track.name}"...`);
   }
 
   try {
     const result = await window.musicAPI.fetchLyrics({
       trackName: track.name,
       filePath: track.path || '',
-      duration: Number.isFinite(audioEl.duration) ? audioEl.duration : 0
+      videoId: track.videoId || '',
+      duration: Number.isFinite(audioEl.duration) ? audioEl.duration : 0,
+      manual: manualTrigger
     });
 
-    if (result && Array.isArray(result.lines) && result.lines.length > 0) {
+    if (result && result.instrumental) {
+      track.isInstrumental = true;
+      track.lyrics = { instrumental: true, synced: false, lines: [] };
+      renderLyricsPanel(true);
+      await saveAppState();
+      if (manualTrigger) {
+        setStatus(`"${track.name}" is an instrumental track.`);
+      }
+      return;
+    }
+
+    if (result && Array.isArray(result.lines) && result.lines.length > 0 && !isAutoCaptionLines(result.lines)) {
       track.lyrics = result;
       renderLyricsPanel(true);
       await saveAppState();
-      setStatus(`Loaded ${result.synced ? 'synced timed' : 'plain'} lyrics for "${track.name}".`);
+      const sourceLabel = result.source === 'ytm' ? 'YouTube Music' : result.synced ? 'synced timed' : 'online';
+      setStatus(`Loaded lyrics from ${sourceLabel} for "${track.name}".`);
     } else {
+      track.lyrics = null;
       renderLyricsPanel(true);
       if (manualTrigger) {
-        setStatus(`No timed lyrics found online for "${track.name}". You can load a .LRC file manually.`);
+        setStatus(`No lyrics found on YouTube Music or online for "${track.name}". You can load a .LRC file manually.`);
       }
     }
   } catch (err) {
@@ -2935,10 +3000,6 @@ function playTrack(playlistIdx, trackIdx) {
     btnPlayPause.textContent = 'Pause';
     renderAll();
     syncDiscordPresence();
-
-    if (!track.lyrics || !Array.isArray(track.lyrics.lines) || track.lyrics.lines.length === 0) {
-      fetchLyricsForCurrentTrack(false);
-    }
   }).catch((err) => {
     setStatus(`Playback error: ${err.message}`);
   });
@@ -3215,6 +3276,25 @@ fallbackLrcInput.addEventListener('change', async (e) => {
   renderLyricsPanel(true);
   setStatus(`Loaded lyrics from "${file.name}".`);
 });
+
+if (btnClearLyrics) {
+  btnClearLyrics.addEventListener('click', async () => {
+    const track = getCurrentTrack();
+    if (!track) {
+      setStatus('Play or select a track first.');
+      return;
+    }
+    track.lyrics = null;
+    if (window.musicAPI && window.musicAPI.deleteLocalLyrics && track.path) {
+      try {
+        await window.musicAPI.deleteLocalLyrics(track.path);
+      } catch (_) {}
+    }
+    renderLyricsPanel(true);
+    await saveAppState();
+    setStatus(`Cleared lyrics for "${track.name}".`);
+  });
+}
 
 // Desktop & Start Menu Shortcuts Button
 btnCreateShortcuts.addEventListener('click', async () => {
