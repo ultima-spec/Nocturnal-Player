@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('musicAPI', {
     return () => ipcRenderer.removeListener('ytm:progress', listener);
   },
   fetchLyrics: (payload) => ipcRenderer.invoke('lyrics:fetch', payload),
+  deleteLocalLyrics: (filePath) => ipcRenderer.invoke('lyrics:delete', filePath),
   updateDiscordPresence: (payload) => ipcRenderer.invoke('discord:update', payload),
   reconnectDiscord: (clientId) => ipcRenderer.invoke('discord:reconnect', clientId),
   setDiscordEnabled: (enabled) => ipcRenderer.invoke('discord:setEnabled', enabled),
