@@ -32,6 +32,7 @@
         <button id="btn-hypr-tile-all" type="button" class="nocturnal-box-fill" title="Tile all container windows">Tile All</button>
         <button id="btn-hypr-float-all" type="button" class="nocturnal-box-fill" title="Float all container windows">Float All</button>
         <button id="btn-app-fullscreen" type="button" class="nocturnal-box-outline" title="Toggle App Monitor Fullscreen (F11)">App Fullscreen</button>
+        <button id="btn-open-extensions" type="button" class="nocturnal-box-fill" style="display: none;" title="Themes &amp; Plugins Studio (Nightly)">Themes &amp; Plugins</button>
         <button id="btn-open-settings" type="button" class="settings-icon-btn nocturnal-box-outline" title="Options &amp; Settings">
           <img src="assets/options_nocturnal_style.png" alt="Settings" class="settings-icon-img" />
         </button>
@@ -157,6 +158,7 @@
                   <button id="btn-vis-tux" type="button" class="vis-toggle-btn nocturnal-box-fill" aria-pressed="false" title="Toggle Dancing Tux (Linux Penguin) Audio Visualizer">
                     TUX
                   </button>
+                  <span id="plugin-vis-toggles"></span>
                   <button id="btn-vis-layout" type="button" class="vis-toggle-btn nocturnal-box-outline" title="Toggle Split vs Overlay when multiple visualizers are active">
                     VIEW: SPLIT
                   </button>
@@ -193,6 +195,7 @@
                   <button id="btn-next" type="button" class="nocturnal-box-fill" title="Next Track">Next &gt;|</button>
                   <button id="btn-shuffle" type="button" class="nocturnal-box-fill" aria-pressed="false" title="Toggle Shuffle">Shuffle: OFF</button>
                   <button id="btn-loop" type="button" class="nocturnal-box-fill" aria-pressed="false" title="Cycle Loop Mode (Off / Loop All / Loop 1)">Loop: OFF</button>
+                  <span id="plugin-playback-buttons"></span>
                 </div>
 
                 <div class="volume-control nocturnal-box-fill">
@@ -285,7 +288,50 @@
         </div>
       </section>
     </div>
+
+    <!-- Retro Mobile Mini-Player (Persistent audio bar when browsing tracks/lyrics on mobile) -->
+    <div id="mobile-mini-player" class="mobile-mini-player nocturnal-container-fill" style="display: none;">
+      <div class="mini-progress-track">
+        <div id="mini-progress-fill" class="mini-progress-fill"></div>
+      </div>
+      <div class="mini-player-body">
+        <img id="mini-cover-art" src="assets/default_cover.png" alt="Mini Cover" class="mini-cover-img" />
+        <div class="mini-info">
+          <div id="mini-title" class="mini-title">No track playing</div>
+          <div id="mini-sub" class="mini-sub">NOCTURNAL PLAYER</div>
+        </div>
+        <div class="mini-btns">
+          <button id="mini-btn-prev" type="button" class="nocturnal-box-outline" title="Previous Track">&lt;</button>
+          <button id="mini-btn-play" type="button" class="nocturnal-box-fill" title="Play / Pause">▶</button>
+          <button id="mini-btn-next" type="button" class="nocturnal-box-outline" title="Next Track">&gt;</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile Retro Bottom Navigation Bar -->
+    <nav id="mobile-nav-bar" class="mobile-nav-bar nocturnal-box-fill">
+      <button type="button" class="mobile-nav-btn active" data-mobile-tab="pane-player" title="Now Playing &amp; Visualizer">
+        <span class="mobile-nav-icon">▶</span>
+        <span class="mobile-nav-label">PLAYER</span>
+      </button>
+      <button type="button" class="mobile-nav-btn" data-mobile-tab="pane-tracklist" title="Tracklist">
+        <span class="mobile-nav-icon">≡</span>
+        <span class="mobile-nav-label">TRACKS</span>
+      </button>
+      <button type="button" class="mobile-nav-btn" data-mobile-tab="pane-lyrics" title="Timed Lyrics">
+        <span class="mobile-nav-icon">♪</span>
+        <span class="mobile-nav-label">LYRICS</span>
+      </button>
+      <button type="button" class="mobile-nav-btn" data-mobile-tab="pane-sidebar" title="Playlists &amp; Import">
+        <span class="mobile-nav-icon">▦</span>
+        <span class="mobile-nav-label">PLAYLISTS</span>
+      </button>
+    </nav>
   </div>
+
+  <!-- Mobile HTML5 Audio File & Folder Pickers (Fallback for Mobile / Android / Web) -->
+  <input id="mobile-audio-file-input" type="file" multiple accept="audio/*,.mp3,.wav,.ogg,.opus,.m4a,.flac" style="display: none;" />
+  <input id="mobile-audio-folder-input" type="file" webkitdirectory directory multiple style="display: none;" />
 
   <!-- Inline Rename Dialog (9-patched nocturnal_container_border_fill.svg) -->
   <dialog id="rename-dialog" class="nocturnal-container-fill">
@@ -422,6 +468,170 @@
       </div>
     </div>
   </dialog>
+
+  <!-- ====================================================================
+       THEMES & PLUGINS STUDIO MODAL (NIGHTLY EXTENSIONS)
+       ==================================================================== -->
+  <dialog id="extensions-modal" class="nocturnal-modal nocturnal-container-fill">
+    <div class="modal-header">
+      <div class="modal-title">[::] THEMES &amp; PLUGINS STUDIO (NIGHTLY)</div>
+      <button id="btn-close-extensions" type="button" class="modal-close-btn nocturnal-box-outline">✕</button>
+    </div>
+
+    <!-- Tab navigation -->
+    <div class="extensions-tabs hypr-btn-group">
+      <button id="tab-btn-themes" type="button" class="ext-tab-btn nocturnal-box-fill active" data-tab="tab-themes">THEMES (6 PRESETS + MAKER)</button>
+      <button id="tab-btn-plugins" type="button" class="ext-tab-btn nocturnal-box-fill" data-tab="tab-plugins">PLUGINS (4 PREMADE + MODULAR)</button>
+    </div>
+
+    <!-- TAB 1: THEMES -->
+    <div id="tab-themes" class="ext-tab-content">
+      <div class="ext-section nocturnal-container-outline">
+        <div class="ext-section-title">PRESET THEMES</div>
+        <div class="ext-row">
+          <label for="theme-preset-select">Select Theme:</label>
+          <select id="theme-preset-select" class="nocturnal-input-select nocturnal-box-fill">
+            <option value="default">Default Nocturnal (Circuit / Monochrome)</option>
+            <option value="amber">Amber CRT Terminal (Warm Phosphor Glow)</option>
+            <option value="matrix">Matrix Green (Cyberpunk Hacker Terminal)</option>
+            <option value="neon">Cyber Neon / Synthwave (Cyan &amp; Magenta)</option>
+            <option value="blood">Blood Moon / Crimson (Gothic Scarlet &amp; Obsidian)</option>
+            <option value="amethyst">Amethyst Purple (Deep Violet &amp; Lavender)</option>
+            <option value="custom">Custom (Theme Maker)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Container & Frame Style -->
+      <div class="ext-section nocturnal-container-outline">
+        <div class="ext-section-title">CONTAINER &amp; FRAME STYLE</div>
+        <div class="theme-options-grid">
+          <div class="theme-option-row">
+            <label for="theme-container-style-select">Frame Shape / 9-Patch:</label>
+            <select id="theme-container-style-select" class="nocturnal-input-select nocturnal-box-fill">
+              <option value="classic">Classic Nocturnal Chamfered SVG (Default)</option>
+              <option value="beveled">Cyber Beveled Hex Frame</option>
+              <option value="pixel">Crisp 8-Bit Pixel Frame</option>
+              <option value="rounded">Rounded Retro CRT Terminal</option>
+              <option value="neon">Neon Glow Wireframe</option>
+              <option value="custom">Custom Frame Image...</option>
+            </select>
+            <button id="btn-upload-container-frame" type="button" class="nocturnal-box-fill" style="display:none">Upload Frame...</button>
+            <input type="file" id="container-frame-file-input" accept="image/*" style="display:none" />
+          </div>
+
+          <div class="theme-option-row">
+            <label for="slider-container-opacity">Container Fill Opacity:</label>
+            <div class="theme-slider-wrap">
+              <input type="range" id="slider-container-opacity" min="0.10" max="1.0" step="0.05" value="0.78" />
+              <span id="val-container-opacity">78%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Background Texture & Wallpaper -->
+      <div class="ext-section nocturnal-container-outline">
+        <div class="ext-section-title">BACKGROUND TEXTURE &amp; WALLPAPER</div>
+        <div class="theme-options-grid">
+          <div class="theme-option-row">
+            <label for="theme-bg-style-select">Background Texture:</label>
+            <select id="theme-bg-style-select" class="nocturnal-input-select nocturnal-box-fill">
+              <option value="circuit">Scrolling Circuit Board (HD Default)</option>
+              <option value="cyber-grid">Synthwave Cyber Grid</option>
+              <option value="scanlines">CRT Phosphor Scanlines</option>
+              <option value="starfield">Deep Space Starfield</option>
+              <option value="none">Solid Pure Dark (None)</option>
+              <option value="custom">Custom Wallpaper Image...</option>
+            </select>
+            <button id="btn-upload-bg-image" type="button" class="nocturnal-box-fill" style="display:none">Upload Image...</button>
+            <input type="file" id="bg-image-file-input" accept="image/*" style="display:none" />
+          </div>
+
+          <div class="theme-option-row">
+            <label for="slider-bg-opacity">Background Opacity:</label>
+            <div class="theme-slider-wrap">
+              <input type="range" id="slider-bg-opacity" min="0.0" max="1.0" step="0.05" value="0.60" />
+              <span id="val-bg-opacity">60%</span>
+            </div>
+          </div>
+
+          <div class="theme-option-row">
+            <label for="theme-bg-speed-select">Background Scroll Animation:</label>
+            <select id="theme-bg-speed-select" class="nocturnal-input-select nocturnal-box-fill">
+              <option value="normal">Normal (38s Infinite Scroll)</option>
+              <option value="slow">Slow Cinematic (65s)</option>
+              <option value="fast">Fast Hyper (18s)</option>
+              <option value="static">Static (No Animation)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="ext-section nocturnal-container-outline">
+        <div class="ext-section-title">THEME MAKER (LIVE COLOR CUSTOMIZATION)</div>
+        <div class="theme-maker-grid">
+          <div class="theme-maker-item">
+            <label for="picker-bg-deep">Background Base:</label>
+            <input type="color" id="picker-bg-deep" value="#000000" />
+          </div>
+          <div class="theme-maker-item">
+            <label for="picker-bg-surface">Panel Surface:</label>
+            <input type="color" id="picker-bg-surface" value="#121217" />
+          </div>
+          <div class="theme-maker-item">
+            <label for="picker-text-primary">Text Color:</label>
+            <input type="color" id="picker-text-primary" value="#f2f2f7" />
+          </div>
+          <div class="theme-maker-item">
+            <label for="picker-accent">Accent &amp; Borders:</label>
+            <input type="color" id="picker-accent" value="#ffffff" />
+          </div>
+          <div class="theme-maker-item">
+            <label for="picker-waveform">Visualizer Wave:</label>
+            <input type="color" id="picker-waveform" value="#ffffff" />
+          </div>
+          <div class="theme-maker-item">
+            <label for="picker-glow">Waveform Glow:</label>
+            <input type="color" id="picker-glow" value="#ffffff" />
+          </div>
+        </div>
+        <div class="ext-actions-row">
+          <button id="btn-save-custom-theme" type="button" class="nocturnal-box-fill">Save Custom Theme</button>
+          <button id="btn-export-theme" type="button" class="nocturnal-box-fill">Export Theme (.json)</button>
+          <button id="btn-import-theme" type="button" class="nocturnal-box-fill">Import Theme (.json)</button>
+          <input type="file" id="theme-file-input" accept=".json,.nocturnal-theme" style="display:none" />
+          <button id="btn-open-themes-folder" type="button" class="nocturnal-box-outline">Open Themes Folder</button>
+          <button id="btn-reset-theme" type="button" class="nocturnal-box-fill">Reset to Default</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: PLUGINS -->
+    <div id="tab-plugins" class="ext-tab-content" style="display:none">
+      <div class="ext-section nocturnal-container-outline">
+        <div class="ext-section-title">ACTIVE PLUGINS (PREMADE &amp; EXTERNAL)</div>
+        <div class="plugins-list" id="plugins-list-container">
+          <!-- Plugin cards injected here -->
+        </div>
+        <div class="ext-actions-row">
+          <button id="btn-open-plugins-folder" type="button" class="nocturnal-box-outline">Open Plugins Folder</button>
+          <button id="btn-reload-plugins" type="button" class="nocturnal-box-fill">Reload Plugins</button>
+        </div>
+      </div>
+
+      <div class="ext-section nocturnal-container-outline">
+        <div class="ext-section-title">CREATING NEW PLUGINS</div>
+        <p class="ext-help-text">
+          Plugins live in your app plugins directory (<code>%APPDATA%/Nocturnal-Player/plugins/</code>). Each plugin folder has a <code>manifest.json</code> and an <code>index.js</code> file exporting <code>onLoad(api)</code> and <code>onUnload()</code>.<br/>
+          Plugins can register new visualizer modes, hook into audio effects, and add custom UI elements!
+        </p>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Toast Notification Container -->
+  <div id="nocturnal-toast-container" class="nocturnal-toast-container"></div>
 
   <!-- FNAF 2 Withered Foxy Jumpscare Overlay -->
   <div id="foxy-jumpscare-overlay" class="foxy-jumpscare-overlay" hidden>
