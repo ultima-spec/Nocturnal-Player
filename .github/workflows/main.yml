@@ -1,0 +1,80 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build-apk:
+    name: Compile Nocturnal Player APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Dependencies
+        run: |
+          npm install --include=dev
+
+      - name: Prepare Mobile Web Distribution
+        run: |
+          rm -rf mobile-web
+          mkdir -p mobile-web/assets
+          cp index.html styles.css renderer.js mobile-web/
+          cp -r assets/* mobile-web/assets/
+
+      - name: Scaffold & Sync Android Platform
+        run: |
+          npx cap add android || true
+          npx cap sync android
+
+      - name: Configure Android Permissions in Manifest
+        run: |
+          node -e "
+            const fs = require('fs');
+            const manifestPath = 'android/app/src/main/AndroidManifest.xml';
+            if (fs.existsSync(manifestPath)) {
+              let content = fs.readFileSync(manifestPath, 'utf8');
+              const perms = [
+                '<uses-permission android:name=\"android.permission.INTERNET\" />',
+                '<uses-permission android:name=\"android.permission.WAKE_LOCK\" />',
+                '<uses-permission android:name=\"android.permission.FOREGROUND_SERVICE\" />',
+                '<uses-permission android:name=\"android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK\" />',
+                '<uses-permission android:name=\"android.permission.READ_MEDIA_AUDIO\" />',
+                '<uses-permission android:name=\"android.permission.READ_EXTERNAL_STORAGE\" android:maxSdkVersion=\"32\" />'
+              ].join('\n    ');
+              if (!content.includes('android.permission.WAKE_LOCK')) {
+                content = content.replace('</manifest>', '    ' + perms + '\n</manifest>');
+                fs.writeFileSync(manifestPath, content, 'utf8');
+              }
+            }
+          "
+
+      - name: Build Debug APK with Gradle
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Upload Private APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nocturnal-Player-v1.2.0-debug.apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
