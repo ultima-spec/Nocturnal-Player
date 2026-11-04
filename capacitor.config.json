@@ -1,0 +1,13 @@
+{
+  "appId": "com.nocturnal.player",
+  "appName": "Nocturnal player",
+  "webDir": "mobile-web",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true
+  }
+}
