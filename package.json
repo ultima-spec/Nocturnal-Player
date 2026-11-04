@@ -1,8 +1,8 @@
 {
   "name": "nocturnal-player",
-  "productName": "Nocturnal player",
-  "version": "1.1.1",
-  "description": "Nocturnal player — standalone music player with 6 playlists, YT Music & timed lyrics, Discord Rich Presence, OGG/WAV/MP3, cover art, shuffle, loop 1/all, and wave visualizer.",
+  "productName": "Nocturnal player Nightly",
+  "version": "1.2.0-nightly",
+  "description": "Nocturnal player Nightly — standalone music player with Themes & Plugins Studio, 6 playlists, YT Music & timed lyrics, Discord Rich Presence, and audio visualizers.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -10,6 +10,9 @@
     "build-installer": "node build-installer.js"
   },
   "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/cli": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
     "electron": "^33.0.0",
     "ffmpeg-static": "^5.2.0"
   }
